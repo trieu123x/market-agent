@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,22 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_api_key: str = ""
+
+    # "redis": API đẩy task vào Redis, cần chạy `taskiq worker`.
+    # "memory": task chạy ngay trong process API (dev/test, không cần Redis).
+    task_broker: Literal["redis", "memory"] = "redis"
+
+    upload_dir: str = "storage/uploads"
+    max_upload_bytes: int = 10 * 1024 * 1024
+    url_fetch_timeout_seconds: float = 15.0
+
+    # "auto": dùng OpenAI nếu có OPENAI_API_KEY, ngược lại dùng hash embedder (chỉ cho dev/test).
+    embedding_provider: Literal["auto", "openai", "hash"] = "auto"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_batch_size: int = 64
+
+    chunk_tokens: int = 800
+    chunk_overlap_tokens: int = 150
 
 
 @lru_cache

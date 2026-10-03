@@ -1,0 +1,32 @@
+# Secrets – chỉ commit .env.example
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# File upload RAG lưu local
+backend/storage/
+
+# Frontend
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Editor / OS
+.vscode/
+.idea/
+*.session.sql
+.DS_Store
+Thumbs.db

@@ -1,10 +1,17 @@
+import os
+import tempfile
 import uuid
 
-import pytest
-from httpx import ASGITransport, AsyncClient
+# Test chạy không cần Redis / OpenAI: task chạy in-process, embedding giả lập.
+os.environ.setdefault("TASK_BROKER", "memory")
+os.environ.setdefault("EMBEDDING_PROVIDER", "hash")
+os.environ.setdefault("UPLOAD_DIR", os.path.join(tempfile.gettempdir(), "market_agent_test_uploads"))
 
-from app.db.session import engine
-from app.main import app
+import pytest  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+
+from app.db.session import engine  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
