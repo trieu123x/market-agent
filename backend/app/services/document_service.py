@@ -125,7 +125,7 @@ async def ingest(document_id: uuid.UUID) -> None:
             if not chunks:
                 raise InvalidUpload("Không trích xuất được nội dung văn bản (file scan cần OCR?)")
             embedder = get_embedder()
-            vectors = await embedder.embed([c.content for c in chunks])
+            vectors = await embedder.embed_documents([c.content for c in chunks])
 
             await session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == doc.id))
             session.add_all(
@@ -133,7 +133,7 @@ async def ingest(document_id: uuid.UUID) -> None:
                     document_id=doc.id,
                     chunk_index=i,
                     content=chunk.content,
-                    metadata_={"heading": chunk.heading, "token_count": chunk.token_count, "embedding_model": embedder.name},
+                    metadata_={"headings": chunk.headings, "token_count": chunk.token_count, "embedding_model": embedder.name},
                     embedding=vector,
                 )
                 for i, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True))

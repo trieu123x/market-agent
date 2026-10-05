@@ -9,12 +9,13 @@ from functools import lru_cache
 import tiktoken
 
 _SENTENCE_RE = re.compile(r"(?<=[.!?…])\s+|\n")
+SEP_TOKENS = 1
 
 
 @dataclass
 class Chunk:
     content: str
-    heading: str | None
+    headings: list[str]  # các tiêu đề chi phối nội dung chunk, theo thứ tự
     token_count: int
 
 
@@ -82,15 +83,22 @@ def _overlap_tail(units: list[_Unit], overlap_tokens: int) -> list[_Unit]:
         last = units[-1]
         enc = _encoding()
         ids = enc.encode(last.text, disallowed_special=())[-overlap_tokens:]
-        text = enc.decode_bytes(ids).decode("utf-8", errors="ignore").strip()
+        text = enc.decode_bytes(ids).decode("utf-8", errors="ignore")
+        start = len(last.text) - len(text)  # phần giải mã luôn là hậu tố của last.text
+        if start > 0 and not last.text[start - 1].isspace():
+            # Token cắt giữa từ ("nghĩa" → "ĩa") → bỏ mảnh từ đầu tiên.
+            parts = text.split(None, 1)
+            text = parts[1] if len(parts) == 2 else ""
+        text = text.strip()
         if text:
-            tail = [_Unit(text, len(ids), last.heading)]
+            tail = [_Unit(text, count_tokens(text), last.heading)]
     return tail
 
 
 def _make_chunk(units: list[_Unit]) -> Chunk:
     content = "\n\n".join(u.text for u in units)
-    return Chunk(content=content, heading=units[0].heading, token_count=count_tokens(content))
+    headings = list(dict.fromkeys(u.heading for u in units if u.heading))
+    return Chunk(content=content, headings=headings, token_count=count_tokens(content))
 
 
 def split_markdown(text: str, chunk_tokens: int = 800, overlap_tokens: int = 150) -> list[Chunk]:
@@ -100,14 +108,15 @@ def split_markdown(text: str, chunk_tokens: int = 800, overlap_tokens: int = 150
     current: list[_Unit] = []
     current_tokens = 0
     for unit in _units(text, chunk_tokens):
-        if current and current_tokens + unit.tokens > chunk_tokens:
+        # Mỗi dấu "\n\n" nối giữa các unit tốn thêm SEP_TOKENS.
+        if current and current_tokens + SEP_TOKENS + unit.tokens > chunk_tokens:
             chunks.append(_make_chunk(current))
             current = _overlap_tail(current, overlap_tokens)
-            current_tokens = sum(u.tokens for u in current)
-            if current_tokens + unit.tokens > chunk_tokens:
+            current_tokens = sum(u.tokens for u in current) + SEP_TOKENS * max(len(current) - 1, 0)
+            if current and current_tokens + SEP_TOKENS + unit.tokens > chunk_tokens:
                 current, current_tokens = [], 0
+        current_tokens += unit.tokens + (SEP_TOKENS if current else 0)
         current.append(unit)
-        current_tokens += unit.tokens
     if current:
         chunks.append(_make_chunk(current))
     return chunks

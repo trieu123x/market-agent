@@ -38,10 +38,18 @@ def _scope_filter(user_id: uuid.UUID):
     )
 
 
-def _to_tsquery_text(query: str) -> str:
-    # OR các từ để câu hỏi dài vẫn match; ts_rank_cd ưu tiên chunk khớp nhiều từ hơn.
-    words = dict.fromkeys(w for w in re.findall(r"\w+", query.lower()) if len(w) > 1)
-    return " | ".join(words)
+def _phrase_tsquery(query: str) -> str:
+    """Tiếng Việt: một từ thường gồm nhiều âm tiết ("nghỉ việc", "trả lương"); khớp từng âm tiết rời làm
+    chunk chứa âm tiết phổ biến lấn át. Vì vậy OR các cặp âm tiết liền nhau (`a <-> b`)."""
+    tokens = re.findall(r"\w+", query.lower())
+    if len(tokens) == 1:
+        return tokens[0]
+    return " | ".join(dict.fromkeys(f"{a} <-> {b}" for a, b in zip(tokens, tokens[1:])))
+
+
+def _word_tsquery(query: str) -> str:
+    """Dự phòng khi không cặp nào khớp (vd. mã sản phẩm, tên riêng): OR từng từ."""
+    return " | ".join(dict.fromkeys(w for w in re.findall(r"\w+", query.lower()) if len(w) > 1))
 
 
 def _columns():
@@ -81,9 +89,13 @@ async def _vector_search(session: AsyncSession, qvec: list[float], user_id: uuid
 
 
 async def _fulltext_search(session: AsyncSession, query: str, user_id: uuid.UUID, limit: int):
-    tsquery_text = _to_tsquery_text(query)
-    if not tsquery_text:
-        return []
+    for tsquery_text in dict.fromkeys((_phrase_tsquery(query), _word_tsquery(query))):
+        if tsquery_text and (hits := await _fulltext_query(session, tsquery_text, user_id, limit)):
+            return hits
+    return []
+
+
+async def _fulltext_query(session: AsyncSession, tsquery_text: str, user_id: uuid.UUID, limit: int):
     tsq = func.to_tsquery("simple", tsquery_text)
     tsv = func.to_tsvector("simple", DocumentChunk.content)  # khớp biểu thức của GIN index
     rank = func.ts_rank_cd(tsv, tsq)
@@ -110,7 +122,7 @@ def reciprocal_rank_fusion(ranked_lists: dict[str, list[RetrievedChunk]], k: int
 async def hybrid_search(
     session: AsyncSession, query: str, user_id: uuid.UUID, top_n: int = FUSED_TOP_N
 ) -> list[RetrievedChunk]:
-    [qvec] = await get_embedder().embed([query])
+    qvec = await get_embedder().embed_query(query)
     vector_hits = await _vector_search(session, qvec, user_id, CANDIDATES_PER_SOURCE)
     fts_hits = await _fulltext_search(session, query, user_id, CANDIDATES_PER_SOURCE)
     return reciprocal_rank_fusion({"vector": vector_hits, "fts": fts_hits})[:top_n]

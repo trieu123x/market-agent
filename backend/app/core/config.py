@@ -33,9 +33,8 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10 * 1024 * 1024
     url_fetch_timeout_seconds: float = 15.0
 
-    # "auto": dùng OpenAI nếu có OPENAI_API_KEY, ngược lại dùng hash embedder (chỉ cho dev/test).
-    embedding_provider: Literal["auto", "openai", "hash"] = "auto"
-    embedding_model: str = "text-embedding-3-small"
+    # Gemini embedding (dùng GOOGLE_API_KEY), cắt về 1536 chiều.
+    embedding_model: str = "gemini-embedding-001"
     embedding_batch_size: int = 64
 
     chunk_tokens: int = 800
