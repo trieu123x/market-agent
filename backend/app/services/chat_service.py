@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import Any
 
@@ -62,6 +63,14 @@ async def record_final_event(thread_id: str, event: str, data: dict[str, Any]) -
     async with SessionLocal() as session:
         if event == "hitl_interrupt" and data["stage"] == "OUTLINE_APPROVAL":
             add_message(session, thread_id, "ASSISTANT", data["data"]["outline"], "OUTLINE_CARD", {"stage": data["stage"]})
+        elif event == "hitl_interrupt" and data["stage"] == "DRAFTS_APPROVAL":
+            meta = {"stage": data["stage"]}
+            drafts, report = data["data"]["drafts"], data["data"].get("fact_check_report")
+            add_message(session, thread_id, "ASSISTANT", json.dumps(drafts, ensure_ascii=False), "DRAFTS_CARD", meta)
+            if report:
+                add_message(
+                    session, thread_id, "ASSISTANT", json.dumps(report, ensure_ascii=False), "FACT_CHECK_REPORT", meta
+                )
         elif event == "error":
             add_message(session, thread_id, "SYSTEM", data["message"], metadata={"code": data["code"]})
         else:

@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.agent.state import PLATFORMS
+
 ThreadId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_.:-]{1,100}$")]
 
 
@@ -28,6 +30,8 @@ class ChatResumeRequest(BaseModel):
                 raise ValueError("EDIT dàn ý cần updated_outline")
             if self.stage == "DRAFTS_APPROVAL" and not self.updated_drafts:
                 raise ValueError("EDIT bản thảo cần updated_drafts")
+        if self.updated_drafts and not set(self.updated_drafts) <= set(PLATFORMS):
+            raise ValueError(f"updated_drafts chỉ nhận các kênh {', '.join(PLATFORMS)}")
         if self.action == "REJECT" and self.stage == "DRAFTS_APPROVAL":
             raise ValueError("DRAFTS_APPROVAL chỉ hỗ trợ APPROVE hoặc EDIT")
         return self

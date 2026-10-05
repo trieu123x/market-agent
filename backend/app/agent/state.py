@@ -4,9 +4,28 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 
+PLATFORMS = ("linkedin", "twitter", "facebook")
+MAX_REFINES = 2  # spec: refine khi còn lỗi và retry < 2
+
+
 class GuardrailViolation(TypedDict):
     code: str
     message: str
+
+
+class FactCheckIssue(TypedDict):
+    platform: str
+    kind: str  # "fact" (fact-checker LLM) | "cliche" (output guardrail)
+    claim: str
+    problem: str
+    suggestion: str
+
+
+class FactCheckReport(TypedDict):
+    passed: bool
+    summary: str
+    issues: list[FactCheckIssue]
+    round: int  # số lần đã refine trước lượt kiểm tra này
 
 
 class AgentState(TypedDict, total=False):
@@ -31,7 +50,7 @@ class AgentState(TypedDict, total=False):
 
     # Fact-checking & self-correction
     fact_check_passed: bool
-    fact_check_report: Optional[str]
+    fact_check_report: Optional[FactCheckReport]
     retry_count: int
 
     # HITL 2: bản thảo cuối

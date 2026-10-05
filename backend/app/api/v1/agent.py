@@ -9,7 +9,7 @@ from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import llm_factory
-from app.agent.graph import get_graph, pending_interrupt
+from app.agent.graph import get_graph, pending_interrupt, thread_config
 from app.agent.streaming import format_sse, stream_graph
 from app.api.deps import get_current_user
 from app.db.models import User
@@ -31,11 +31,11 @@ async def rate_limit(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def _sse_response(graph_input: Any, thread_id: str) -> StreamingResponse:
+def _sse_response(graph_input: Any, thread_id: str, user_id: uuid.UUID, model_id: str) -> StreamingResponse:
     async def body() -> AsyncIterator[str]:
         yield format_sse("status", {"step": "STARTED", "message": "Bắt đầu xử lý...", "thread_id": thread_id})
         graph = await get_graph()
-        async for event, data in stream_graph(graph, graph_input, thread_id):
+        async for event, data in stream_graph(graph, graph_input, thread_id, user_id, model_id):
             if event in ("hitl_interrupt", "error"):
                 await chat_service.record_final_event(thread_id, event, data)
             yield format_sse(event, data)
@@ -89,7 +89,7 @@ async def chat_stream(
         "retry_count": 0,
         "drafts_status": None,
     }
-    return _sse_response(graph_input, thread_id)
+    return _sse_response(graph_input, thread_id, user.id, pricing.model_id)
 
 
 @router.post("/chat/resume")
@@ -99,7 +99,8 @@ async def chat_resume(
     """Gửi quyết định HITL (APPROVE / EDIT / REJECT) và stream phần còn lại của luồng."""
     if await chat_service.get_owned_thread(session, user.id, body.thread_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found")
-    pending = await pending_interrupt(await get_graph(), body.thread_id)
+    snapshot = await (await get_graph()).aget_state(thread_config(body.thread_id))
+    pending = snapshot.interrupts[0].value if snapshot.interrupts else None
     if pending is None or pending.get("stage") != body.stage:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Thread không chờ duyệt ở bước {body.stage}")
     if any(detect_jailbreak(t) for t in (body.feedback, body.updated_outline) if t):
@@ -110,7 +111,12 @@ async def chat_resume(
         session, body.thread_id, "HUMAN_INTERRUPT", body.action, metadata={"stage": body.stage, **decision}
     )
     await session.commit()
-    return _sse_response(Command(resume={**decision, "action": body.action.lower()}), body.thread_id)
+    return _sse_response(
+        Command(resume={**decision, "action": body.action.lower()}),
+        body.thread_id,
+        user.id,
+        snapshot.values["selected_model"],
+    )
 
 
 @router.get("/threads", response_model=list[ThreadOut])
