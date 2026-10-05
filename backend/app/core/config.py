@@ -40,6 +40,19 @@ class Settings(BaseSettings):
     chunk_tokens: int = 800
     chunk_overlap_tokens: int = 150
 
+    # OCR cho ảnh nhúng trong PDF (PyMuPDF + Tesseract, cần cài `tesseract-ocr` + tessdata).
+    ocr_enabled: bool = True
+    ocr_language: str = "vie+eng"
+    ocr_dpi: int = 200
+    ocr_min_image_px: int = 100  # bỏ qua icon/logo nhỏ hơn ngưỡng này (cạnh ngắn nhất)
+
+    # Rate limit chat/resume theo user. "memory" chỉ dùng cho dev/test một process.
+    rate_limit_per_minute: int = 30
+    rate_limit_backend: Literal["redis", "memory"] = "redis"
+
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 4096
+
 
 @lru_cache
 def get_settings() -> Settings:

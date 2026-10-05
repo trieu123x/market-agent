@@ -22,6 +22,7 @@ class GeminiEmbedder:
     MAX_BATCH = 100  # giới hạn của batchEmbedContents
 
     def __init__(self, api_key: str, model: str, batch_size: int):
+        """Khởi tạo client Gemini (có retry) và giới hạn batch."""
         self.client = genai.Client(
             api_key=api_key,
             http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=5)),
@@ -30,6 +31,7 @@ class GeminiEmbedder:
         self.batch_size = min(batch_size, self.MAX_BATCH)
 
     async def _embed(self, texts: list[str], task_type: str) -> list[list[float]]:
+        """Gọi Gemini embedding theo từng batch với task_type cho trước."""
         config = types.EmbedContentConfig(task_type=task_type, output_dimensionality=EMBEDDING_DIM)
         vectors: list[list[float]] = []
         for i in range(0, len(texts), self.batch_size):
@@ -40,15 +42,18 @@ class GeminiEmbedder:
         return vectors
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Tạo vector cho danh sách đoạn tài liệu."""
         return await self._embed(texts, "RETRIEVAL_DOCUMENT")
 
     async def embed_query(self, text: str) -> list[float]:
+        """Tạo vector cho một câu truy vấn."""
         [vector] = await self._embed([text], "RETRIEVAL_QUERY")
         return vector
 
 
 @lru_cache
 def get_embedder() -> Embedder:
+    """Trả về embedder Gemini dùng chung (cache), lỗi nếu thiếu GOOGLE_API_KEY."""
     s = get_settings()
     if not s.google_api_key:
         raise RuntimeError("GOOGLE_API_KEY trống – cần để tạo embedding Gemini")

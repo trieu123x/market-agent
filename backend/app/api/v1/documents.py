@@ -19,6 +19,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 async def _read_limited(file: UploadFile, limit: int) -> bytes:
+    """Đọc file upload, lỗi nếu rỗng hoặc vượt giới hạn dung lượng."""
     data = await file.read(limit + 1)
     if len(data) > limit:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"File vượt quá {limit // (1024 * 1024)}MB")
@@ -35,6 +36,7 @@ async def upload(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    """Nhận file hoặc URL, lưu tài liệu rồi đẩy task ingest nền (trả 202)."""
     if (file is None) == (not url):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cần gửi đúng một trong hai: file hoặc url")
     if scope == "SYSTEM" and user.role != "ADMIN":
@@ -65,6 +67,7 @@ async def upload(
 
 @router.get("", response_model=list[DocumentOut])
 async def list_documents(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    """Liệt kê tài liệu user được xem."""
     return await document_service.list_visible(session, user)
 
 
@@ -72,6 +75,7 @@ async def list_documents(user: User = Depends(get_current_user), session: AsyncS
 async def get_document(
     document_id: uuid.UUID, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
 ):
+    """Xem chi tiết một tài liệu (404 nếu không có quyền)."""
     doc = await document_service.get_visible(session, user, document_id)
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")

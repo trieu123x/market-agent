@@ -29,14 +29,17 @@ class _Unit:
 @lru_cache
 def _encoding() -> tiktoken.Encoding:
     # Cùng tokenizer với text-embedding-3-*.
+    """Tokenizer tiktoken dùng chung (cache)."""
     return tiktoken.get_encoding("cl100k_base")
 
 
 def count_tokens(text: str) -> int:
+    """Đếm số token của một đoạn text."""
     return len(_encoding().encode(text, disallowed_special=()))
 
 
 def _token_windows(text: str, size: int) -> list[str]:
+    """Cắt cứng text thành các cửa sổ token cố định."""
     enc = _encoding()
     ids = enc.encode(text, disallowed_special=())
     return [
@@ -46,6 +49,7 @@ def _token_windows(text: str, size: int) -> list[str]:
 
 
 def _units(text: str, chunk_tokens: int) -> list[_Unit]:
+    """Tách Markdown thành các đơn vị nhỏ (đoạn → câu → cửa sổ token) kèm heading hiện tại."""
     units: list[_Unit] = []
     heading: str | None = None
     for block in re.split(r"\n\s*\n", text):
@@ -71,6 +75,7 @@ def _units(text: str, chunk_tokens: int) -> list[_Unit]:
 
 
 def _overlap_tail(units: list[_Unit], overlap_tokens: int) -> list[_Unit]:
+    """Lấy phần đuôi của chunk trước để làm overlap cho chunk kế tiếp."""
     tail: list[_Unit] = []
     total = 0
     for u in reversed(units):
@@ -96,12 +101,14 @@ def _overlap_tail(units: list[_Unit], overlap_tokens: int) -> list[_Unit]:
 
 
 def _make_chunk(units: list[_Unit]) -> Chunk:
+    """Ghép các đơn vị thành một Chunk (nội dung, headings, số token)."""
     content = "\n\n".join(u.text for u in units)
     headings = list(dict.fromkeys(u.heading for u in units if u.heading))
     return Chunk(content=content, headings=headings, token_count=count_tokens(content))
 
 
 def split_markdown(text: str, chunk_tokens: int = 800, overlap_tokens: int = 150) -> list[Chunk]:
+    """Chia Markdown thành các chunk ≤ chunk_tokens, có overlap giữa các chunk liền kề."""
     if overlap_tokens >= chunk_tokens:
         raise ValueError("overlap_tokens phải nhỏ hơn chunk_tokens")
     chunks: list[Chunk] = []

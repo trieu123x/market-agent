@@ -13,10 +13,16 @@ if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 url = get_settings().database_url
+# Bảng của LangGraph AsyncPostgresSaver (tạo bởi saver.setup()), autogenerate không được đụng tới.
+CHECKPOINT_TABLES = {"checkpoints", "checkpoint_blobs", "checkpoint_writes", "checkpoint_migrations"}
+
+
+def include_name(name, type_, parent_names):
+    return not (type_ == "table" and name in CHECKPOINT_TABLES)
 
 
 def do_run(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(connection=connection, target_metadata=target_metadata, include_name=include_name)
     with context.begin_transaction():
         context.run_migrations()
 

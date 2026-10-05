@@ -3,7 +3,14 @@ import io
 import pymupdf
 from docx import Document as DocxDocument
 
-from app.rag.parsers import docx_to_markdown, html_to_markdown, parse_to_markdown, pdf_to_markdown, txt_to_markdown
+from app.rag.parsers import (
+    docx_to_markdown,
+    html_to_markdown,
+    parse_to_markdown,
+    pdf_to_markdown,
+    strip_table_of_contents,
+    txt_to_markdown,
+)
 
 
 def test_pdf_to_markdown():
@@ -45,3 +52,47 @@ def test_url_pdf_content_dispatch():
     doc = pymupdf.open()
     doc.new_page().insert_text((72, 72), "Remote pdf")
     assert "Remote pdf" in parse_to_markdown("URL", doc.tobytes(), "application/pdf")
+
+
+def test_docx_word_toc_removed():
+    d = DocxDocument()
+    d.add_paragraph("NỘI QUY LAO ĐỘNG")
+    d.add_paragraph("MỤC LỤC")
+    d.add_paragraph("CHƯƠNG I: Quy định chung\t3")
+    d.add_paragraph("CHƯƠNG II: Thời giờ làm việc\t4")
+    d.add_heading("CHƯƠNG I: QUY ĐỊNH CHUNG", level=1)
+    d.add_paragraph("Nội quy áp dụng cho toàn bộ người lao động.")
+    buf = io.BytesIO()
+    d.save(buf)
+    md = parse_to_markdown("DOCX", buf.getvalue())
+    assert md == "NỘI QUY LAO ĐỘNG\n\n# CHƯƠNG I: QUY ĐỊNH CHUNG\n\nNội quy áp dụng cho toàn bộ người lao động."
+
+
+def test_pdf_style_toc_with_leaders_wrapped_lines_and_page_footer():
+    md = (
+        "Mục lục\nTrang\n"
+        "Chương I: Quy định chung ................ 3\n"
+        "Chương VII: Tạm thời chuyển người lao động làm công việc khác so với\n"
+        "hợp đồng lao động ...................... 12\n"
+        "\n2\n\n"
+        "Chương XII: Điều khoản thi hành … 16\n"
+        "Điều 5. Thời giờ làm việc không quá 08 giờ trong 01 ngày và không quá 48\n"
+        "giờ trong 01 tuần."
+    )
+    assert strip_table_of_contents(md) == (
+        "Điều 5. Thời giờ làm việc không quá 08 giờ trong 01 ngày và không quá 48\ngiờ trong 01 tuần."
+    )
+
+
+def test_untitled_leader_run_removed_only_when_long_enough():
+    toc = "Giới thiệu ........ 1\nSản phẩm ........ 2\nGiá ........ 5\n\nNội dung chính."
+    assert strip_table_of_contents(toc) == "Nội dung chính."
+    short = "Giới thiệu ........ 1\nSản phẩm ........ 2\n\nNội dung chính."
+    assert strip_table_of_contents(short) == short
+
+
+def test_toc_title_without_entries_or_prose_is_kept():
+    md = "## Contents\n\nBài viết này nói về chiến lược nội dung cho mùa Tết năm 2026\n\n## Kênh\n\nFacebook"
+    assert strip_table_of_contents(md) == md
+    md = "Mục lục sản phẩm mới gồm 3 dòng chính, ra mắt quý 4 năm 2026."
+    assert strip_table_of_contents(md) == md

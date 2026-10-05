@@ -32,6 +32,7 @@ class RetrievedChunk:
 
 
 def _scope_filter(user_id: uuid.UUID):
+    """Điều kiện quyền: doc READY và (SYSTEM hoặc PRIVATE của user)."""
     return and_(
         Document.processing_status == "READY",
         or_(Document.scope == "SYSTEM", and_(Document.scope == "PRIVATE", Document.user_id == user_id)),
@@ -53,6 +54,7 @@ def _word_tsquery(query: str) -> str:
 
 
 def _columns():
+    """Các cột cần lấy cho một chunk kết quả."""
     return (
         DocumentChunk.id,
         DocumentChunk.document_id,
@@ -64,6 +66,7 @@ def _columns():
 
 
 def _to_chunk(row) -> RetrievedChunk:
+    """Chuyển một row DB thành RetrievedChunk."""
     return RetrievedChunk(
         chunk_id=row.id,
         document_id=row.document_id,
@@ -76,6 +79,7 @@ def _to_chunk(row) -> RetrievedChunk:
 
 async def _vector_search(session: AsyncSession, qvec: list[float], user_id: uuid.UUID, limit: int):
     # Lọc scope sau HNSW có thể làm hụt kết quả → bật iterative scan (pgvector >= 0.8).
+    """Tìm theo độ tương đồng vector (cosine, HNSW)."""
     await session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
     distance = DocumentChunk.embedding.cosine_distance(qvec)
     stmt = (
@@ -89,6 +93,7 @@ async def _vector_search(session: AsyncSession, qvec: list[float], user_id: uuid
 
 
 async def _fulltext_search(session: AsyncSession, query: str, user_id: uuid.UUID, limit: int):
+    """Tìm full-text: thử cụm âm tiết liền nhau trước, không có thì OR từng từ."""
     for tsquery_text in dict.fromkeys((_phrase_tsquery(query), _word_tsquery(query))):
         if tsquery_text and (hits := await _fulltext_query(session, tsquery_text, user_id, limit)):
             return hits
@@ -96,6 +101,7 @@ async def _fulltext_search(session: AsyncSession, query: str, user_id: uuid.UUID
 
 
 async def _fulltext_query(session: AsyncSession, tsquery_text: str, user_id: uuid.UUID, limit: int):
+    """Chạy một truy vấn tsquery và xếp hạng theo ts_rank_cd."""
     tsq = func.to_tsquery("simple", tsquery_text)
     tsv = func.to_tsvector("simple", DocumentChunk.content)  # khớp biểu thức của GIN index
     rank = func.ts_rank_cd(tsv, tsq)
@@ -110,6 +116,7 @@ async def _fulltext_query(session: AsyncSession, tsquery_text: str, user_id: uui
 
 
 def reciprocal_rank_fusion(ranked_lists: dict[str, list[RetrievedChunk]], k: int = RRF_K) -> list[RetrievedChunk]:
+    """Gộp nhiều danh sách xếp hạng thành một bằng điểm RRF."""
     fused: dict[uuid.UUID, RetrievedChunk] = {}
     for source, chunks in ranked_lists.items():
         for rank, chunk in enumerate(chunks, start=1):
@@ -122,6 +129,7 @@ def reciprocal_rank_fusion(ranked_lists: dict[str, list[RetrievedChunk]], k: int
 async def hybrid_search(
     session: AsyncSession, query: str, user_id: uuid.UUID, top_n: int = FUSED_TOP_N
 ) -> list[RetrievedChunk]:
+    """Tìm vector + full-text rồi gộp bằng RRF, lấy top_n."""
     qvec = await get_embedder().embed_query(query)
     vector_hits = await _vector_search(session, qvec, user_id, CANDIDATES_PER_SOURCE)
     fts_hits = await _fulltext_search(session, query, user_id, CANDIDATES_PER_SOURCE)
@@ -131,5 +139,6 @@ async def hybrid_search(
 async def retrieve(
     session: AsyncSession, query: str, user_id: uuid.UUID, top_k: int = FINAL_TOP_K
 ) -> list[RetrievedChunk]:
+    """Hàm retrieval chính: hybrid search rồi rerank, trả top_k chunk."""
     candidates = await hybrid_search(session, query, user_id)
     return await rerank(query, candidates, top_k)

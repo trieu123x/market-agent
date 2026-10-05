@@ -7,12 +7,14 @@ import uuid
 
 # Test chạy không cần Redis: task chạy in-process.
 os.environ.setdefault("TASK_BROKER", "memory")
+os.environ.setdefault("RATE_LIMIT_BACKEND", "memory")
 os.environ.setdefault("UPLOAD_DIR", os.path.join(tempfile.gettempdir(), "market_agent_test_uploads"))
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from app.agent.graph import close_graph, get_graph  # noqa: E402
 from app.db.models.document import EMBEDDING_DIM  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
@@ -47,9 +49,15 @@ def _fake_embedder(monkeypatch):
 
 @pytest.fixture(scope="session", autouse=True)
 async def _cleanup_test_data():
-    """Xóa dữ liệu test khỏi DB dev sau khi chạy xong (tài liệu embed bằng FakeEmbedder + user test)."""
+    """Xóa dữ liệu test khỏi DB dev sau khi chạy xong (tài liệu embed bằng FakeEmbedder, user test,
+    checkpoint của thread test – thread_id bắt đầu bằng "test-")."""
+    await get_graph()  # ASGITransport không chạy lifespan → tự setup checkpointer như lúc startup
     yield
+    await close_graph()
     async with engine.begin() as conn:
+        if await conn.scalar(text("SELECT to_regclass('checkpoints') IS NOT NULL")):
+            for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
+                await conn.execute(text(f"DELETE FROM {table} WHERE thread_id LIKE 'test-%'"))
         await conn.execute(
             text(
                 "DELETE FROM documents WHERE id IN "

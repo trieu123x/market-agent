@@ -10,7 +10,8 @@ from app.db.session import SessionLocal, engine
 
 # (provider, model_id, input $/1k, output $/1k, is_default) — giá tham chiếu, chỉnh qua Admin API
 PRICING = [
-    ("openai", "gpt-4o", "0.002500", "0.010000", True),
+    ("google", "gemini-3.5-flash-lite", "0.000300", "0.002500", True),
+    ("openai", "gpt-4o", "0.002500", "0.010000", False),
     ("openai", "gpt-4o-mini", "0.000150", "0.000600", False),
     ("anthropic", "claude-sonnet-4-5", "0.003000", "0.015000", False),
     ("anthropic", "claude-haiku-4-5", "0.001000", "0.005000", False),

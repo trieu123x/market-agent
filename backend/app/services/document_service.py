@@ -24,6 +24,7 @@ class InvalidUpload(ValueError):
 
 
 def detect_file_type(filename: str, head: bytes) -> str:
+    """Xác định loại file từ đuôi và magic bytes, lỗi nếu không hỗ trợ/không hợp lệ."""
     file_type = EXTENSIONS.get(Path(filename).suffix.lower())
     if file_type is None:
         raise InvalidUpload("Chỉ hỗ trợ PDF, DOCX, TXT")
@@ -35,6 +36,7 @@ def detect_file_type(filename: str, head: bytes) -> str:
 
 
 def _upload_dir() -> Path:
+    """Thư mục lưu file upload (tạo nếu chưa có)."""
     path = Path(get_settings().upload_dir).resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -43,6 +45,7 @@ def _upload_dir() -> Path:
 async def create_from_file(
     session: AsyncSession, user: User, scope: str, filename: str, data: bytes
 ) -> Document:
+    """Lưu file upload và tạo bản ghi Document (PENDING)."""
     file_type = detect_file_type(filename, data[:8])
     doc_id = uuid.uuid4()
     path = _upload_dir() / f"{doc_id}{Path(filename).suffix.lower()}"
@@ -63,6 +66,7 @@ async def create_from_file(
 
 
 async def create_from_url(session: AsyncSession, user: User, scope: str, url: str) -> Document:
+    """Kiểm tra URL (anti-SSRF) và tạo bản ghi Document loại URL."""
     url = url.strip()
     await anti_ssrf.validate_url(url)
     doc = Document(user_id=user.id, scope=scope, title=url[:255], file_type="URL", storage_path=url)
@@ -73,19 +77,23 @@ async def create_from_url(session: AsyncSession, user: User, scope: str, url: st
 
 
 def visible_filter(user: User):
+    """Điều kiện lọc tài liệu user được xem: SYSTEM hoặc của chính user."""
     return or_(Document.scope == "SYSTEM", Document.user_id == user.id)
 
 
 async def list_visible(session: AsyncSession, user: User) -> list[Document]:
+    """Liệt kê tài liệu user được xem, mới nhất trước."""
     stmt = select(Document).where(visible_filter(user)).order_by(Document.created_at.desc())
     return list((await session.scalars(stmt)).all())
 
 
 async def get_visible(session: AsyncSession, user: User, document_id: uuid.UUID) -> Document | None:
+    """Lấy một tài liệu nếu user có quyền xem, không thì None."""
     return await session.scalar(select(Document).where(Document.id == document_id, visible_filter(user)))
 
 
 async def delete_document(session: AsyncSession, document_id: uuid.UUID) -> bool:
+    """Xóa tài liệu (chunk xóa theo cascade) và file lưu trên đĩa."""
     doc = await session.get(Document, document_id)
     if doc is None:
         return False
@@ -98,6 +106,7 @@ async def delete_document(session: AsyncSession, document_id: uuid.UUID) -> bool
 
 
 async def _load_content(doc: Document) -> str:
+    """Đọc nội dung tài liệu (file hoặc tải URL) và chuyển thành Markdown."""
     s = get_settings()
     if doc.file_type == "URL":
         fetched = await anti_ssrf.safe_fetch(doc.storage_path, s.max_upload_bytes, s.url_fetch_timeout_seconds)
