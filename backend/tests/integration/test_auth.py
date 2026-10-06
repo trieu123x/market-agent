@@ -37,6 +37,17 @@ async def test_me_requires_valid_token(client):
     assert r.status_code == 401
 
 
+async def test_refresh_issues_new_token(client, unique_email):
+    token = await register_and_login(client, unique_email)
+    r = await client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    new_token = r.json()["access_token"]
+    r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {new_token}"})
+    assert r.status_code == 200
+    assert r.json()["email"] == unique_email
+    assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
 async def test_short_password_validation(client, unique_email):
     r = await client.post("/api/v1/auth/register", json={"email": unique_email, "password": "short"})
     assert r.status_code == 422

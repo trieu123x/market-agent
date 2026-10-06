@@ -73,10 +73,15 @@ async def _record_cost(ev: dict, user_id: uuid.UUID, thread_id: str, model_id: s
     }
 
 
+def interrupt_event(payload: dict[str, Any]) -> dict[str, Any]:
+    """Payload của interrupt() → dữ liệu event hitl_interrupt: {stage, message, data}."""
+    data = {k: v for k, v in payload.items() if k not in ("stage", "message")}
+    return {"stage": payload["stage"], "message": payload.get("message"), "data": data}
+
+
 async def _final_event(graph: CompiledStateGraph, thread_id: str) -> Event:
     if (payload := await pending_interrupt(graph, thread_id)) is not None:
-        data = {k: v for k, v in payload.items() if k not in ("stage", "message")}
-        return "hitl_interrupt", {"stage": payload["stage"], "message": payload.get("message"), "data": data}
+        return "hitl_interrupt", interrupt_event(payload)
     values = (await graph.aget_state(thread_config(thread_id))).values
     if violation := values.get("guardrail_violation"):
         return "error", dict(violation)

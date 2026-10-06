@@ -33,6 +33,8 @@ class Document(Base):
     processing_status: Mapped[str] = mapped_column(String(20), server_default="PENDING")
     error_message: Mapped[str | None] = mapped_column(Text)
     chunk_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    # Tiến độ từng bước parse → chunk → embed → save do worker ghi (xem app/rag/progress.py)
+    ingest_progress: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

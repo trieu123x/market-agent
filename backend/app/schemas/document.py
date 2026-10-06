@@ -26,8 +26,24 @@ class DocumentOut(BaseModel):
     processing_status: str
     error_message: str | None
     chunk_count: int
+    ingest_progress: dict
     created_at: datetime
     updated_at: datetime
+
+
+class DocumentChunkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    chunk_index: int
+    content: str
+    metadata: dict = Field(validation_alias="metadata_")
+
+
+class DocumentChunkPage(BaseModel):
+    total: int
+    offset: int
+    items: list[DocumentChunkOut]
 
 
 class SearchRequest(BaseModel):
@@ -43,6 +59,7 @@ class ChunkHit(BaseModel):
     content: str
     metadata: dict
     score: float
+    rerank_score: float | None = None
     ranks: dict[str, int]
 
 

@@ -96,3 +96,9 @@ def test_toc_title_without_entries_or_prose_is_kept():
     assert strip_table_of_contents(md) == md
     md = "Mục lục sản phẩm mới gồm 3 dòng chính, ra mắt quý 4 năm 2026."
     assert strip_table_of_contents(md) == md
+
+
+def test_markdown_upload_parsed_as_txt():
+    from app.services.document_service import detect_file_type
+
+    assert detect_file_type("Brief.MD", b"# Title") == "TXT"

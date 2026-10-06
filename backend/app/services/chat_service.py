@@ -62,7 +62,8 @@ async def record_final_event(thread_id: str, event: str, data: dict[str, Any]) -
     """Lưu kết quả cuối của một lượt stream vào thread_messages (session riêng vì chạy trong StreamingResponse)."""
     async with SessionLocal() as session:
         if event == "hitl_interrupt" and data["stage"] == "OUTLINE_APPROVAL":
-            add_message(session, thread_id, "ASSISTANT", data["data"]["outline"], "OUTLINE_CARD", {"stage": data["stage"]})
+            meta = {"stage": data["stage"], "sources": data["data"].get("sources", [])}
+            add_message(session, thread_id, "ASSISTANT", data["data"]["outline"], "OUTLINE_CARD", meta)
         elif event == "hitl_interrupt" and data["stage"] == "DRAFTS_APPROVAL":
             meta = {"stage": data["stage"]}
             drafts, report = data["data"]["drafts"], data["data"].get("fact_check_report")

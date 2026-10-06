@@ -2,7 +2,7 @@ import uuid
 from dataclasses import asdict
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -11,7 +11,14 @@ from app.db.models import User
 from app.db.session import get_session
 from app.guardrails.anti_ssrf import UnsafeURLError
 from app.rag.retriever import retrieve
-from app.schemas.document import ChunkHit, DocumentOut, DocumentUploadResponse, SearchRequest, SearchResponse
+from app.schemas.document import (
+    ChunkHit,
+    DocumentChunkPage,
+    DocumentOut,
+    DocumentUploadResponse,
+    SearchRequest,
+    SearchResponse,
+)
 from app.services import document_service
 from app.workers.tasks import ingest_document
 
@@ -80,6 +87,21 @@ async def get_document(
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
     return doc
+
+
+@router.get("/{document_id}/chunks", response_model=DocumentChunkPage)
+async def list_chunks(
+    document_id: uuid.UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Các chunk đã lưu của một tài liệu, theo thứ tự (404 nếu không có quyền xem tài liệu)."""
+    if await document_service.get_visible(session, user, document_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    total, chunks = await document_service.list_chunks(session, document_id, offset, limit)
+    return DocumentChunkPage(total=total, offset=offset, items=chunks)
 
 
 @router.post("/search", response_model=SearchResponse)

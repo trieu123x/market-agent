@@ -26,6 +26,15 @@ async def resolve_active_model(session: AsyncSession, model_id: str | None) -> M
     return await session.scalar(stmt.limit(1))
 
 
+async def list_active(session: AsyncSession) -> list[ModelPricing]:
+    stmt = (
+        select(ModelPricing)
+        .where(ModelPricing.is_system_active.is_(True))
+        .order_by(ModelPricing.is_default.desc(), ModelPricing.provider, ModelPricing.model_id)
+    )
+    return list(await session.scalars(stmt))
+
+
 async def list_pricing(session: AsyncSession) -> list[ModelPricing]:
     stmt = select(ModelPricing).order_by(ModelPricing.is_default.desc(), ModelPricing.provider, ModelPricing.model_id)
     return list(await session.scalars(stmt))

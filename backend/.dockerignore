@@ -1,0 +1,9 @@
+.venv
+.env
+.env.*
+!.env.example
+storage
+tests
+**/__pycache__
+*.egg-info
+.pytest_cache

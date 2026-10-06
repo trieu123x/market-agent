@@ -14,7 +14,9 @@ def _make_broker() -> AsyncBroker:
         return InMemoryBroker()
     from taskiq_redis import ListQueueBroker
 
-    return ListQueueBroker(s.redis_url)
+    # BRPOP chờ task không giới hạn; redis-py ≥ 8 mặc định socket_timeout=5s → hàng đợi rỗng 5s là
+    # receiver lỗi TimeoutError, process worker bị restart và giết luôn task ingest đang chạy.
+    return ListQueueBroker(s.redis_url, socket_timeout=None)
 
 
 broker = _make_broker()

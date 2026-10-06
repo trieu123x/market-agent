@@ -2,6 +2,7 @@
 import io
 import logging
 import re
+from collections.abc import Callable
 
 import pymupdf
 from bs4 import BeautifulSoup
@@ -46,15 +47,26 @@ def _page_text(page: "pymupdf.Page", ocr_ok: bool) -> tuple[str, bool]:
     return text, ocr_ok
 
 
-def pdf_to_markdown(data: bytes) -> str:
+# on_progress(done, total, detail): báo tiến độ parse (gọi từ thread parser)
+ProgressFn = Callable[[int, int, str | None], None]
+
+
+def _noop_progress(done: int, total: int, detail: str | None = None) -> None:
+    pass
+
+
+def pdf_to_markdown(data: bytes, on_progress: ProgressFn = _noop_progress) -> str:
     """PDF → text theo từng trang, OCR các trang có ảnh rồi gộp lại."""
     pages = []
     ocr_ok = True
     with pymupdf.open(stream=data, filetype="pdf") as doc:
-        for page in doc:
+        total = doc.page_count
+        for i, page in enumerate(doc):
+            on_progress(i, total, f"Trang {i + 1}/{total}")
             text, ocr_ok = _page_text(page, ocr_ok)
             if text:
                 pages.append(text)
+        on_progress(total, total, None)
     return _normalize("\n\n".join(pages))
 
 
@@ -94,12 +106,14 @@ def _docx_images_text_in_table(doc, table: Table, ocr_ok: bool) -> list[str]:
     return _docx_images_text(doc, table._element, ocr_ok)[0]
 
 
-def docx_to_markdown(data: bytes) -> str:
+def docx_to_markdown(data: bytes, on_progress: ProgressFn = _noop_progress) -> str:
     """DOCX → Markdown (heading, list, bảng) kèm text OCR từ ảnh nhúng."""
     doc = DocxDocument(io.BytesIO(data))
     lines: list[str] = []
     ocr_ok = True
-    for block in doc.iter_inner_content():
+    blocks = list(doc.iter_inner_content())
+    for i, block in enumerate(blocks):
+        on_progress(i, len(blocks), None)
         if isinstance(block, Table):
             for row in block.rows:
                 cells = [c.text.strip().replace("\n", " ") for c in row.cells]
@@ -127,6 +141,7 @@ def docx_to_markdown(data: bytes) -> str:
         lines.append("")
         for t in img_texts:
             lines += [t, ""]
+    on_progress(len(blocks), len(blocks), None)
     return _normalize("\n".join(lines))
 
 
@@ -231,23 +246,25 @@ def strip_table_of_contents(md: str) -> str:
     return _normalize("\n".join(out))
 
 
-def _parse(file_type: str, data: bytes, content_type: str) -> str:
+def _parse(file_type: str, data: bytes, content_type: str, on_progress: ProgressFn) -> str:
     if file_type == "PDF":
-        return pdf_to_markdown(data)
+        return pdf_to_markdown(data, on_progress)
     if file_type == "DOCX":
-        return docx_to_markdown(data)
+        return docx_to_markdown(data, on_progress)
     if file_type == "TXT":
         return txt_to_markdown(data)
     if file_type == "URL":
         ctype = content_type.split(";")[0].strip().lower()
         if ctype == "application/pdf" or data.startswith(PDF_MAGIC):
-            return pdf_to_markdown(data)
+            return pdf_to_markdown(data, on_progress)
         if ctype.startswith("text/plain"):
             return txt_to_markdown(data)
         return html_to_markdown(data)
     raise ValueError(f"Unsupported file type: {file_type}")
 
 
-def parse_to_markdown(file_type: str, data: bytes, content_type: str = "") -> str:
+def parse_to_markdown(
+    file_type: str, data: bytes, content_type: str = "", on_progress: ProgressFn = _noop_progress
+) -> str:
     """Chọn parser theo loại file (PDF/DOCX/TXT/URL), trả về Markdown đã bỏ mục lục."""
-    return strip_table_of_contents(_parse(file_type, data, content_type))
+    return strip_table_of_contents(_parse(file_type, data, content_type, on_progress))

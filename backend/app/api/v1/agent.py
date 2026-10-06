@@ -10,14 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import llm_factory
 from app.agent.graph import get_graph, pending_interrupt, thread_config
-from app.agent.streaming import format_sse, stream_graph
+from app.agent.streaming import format_sse, interrupt_event, stream_graph
 from app.api.deps import get_current_user
 from app.db.models import User
 from app.db.session import get_session
 from app.guardrails.input_filter import detect_jailbreak
 from app.guardrails.rate_limiter import get_rate_limiter
-from app.schemas.agent import ChatResumeRequest, ChatStreamRequest, ThreadMessageOut, ThreadOut
-from app.services import chat_service, pricing_service
+from app.schemas.agent import (
+    ChatResumeRequest,
+    ChatStreamRequest,
+    ModelOption,
+    PendingInterrupt,
+    ThreadMessageOut,
+    ThreadOut,
+    ThreadStateOut,
+)
+from app.services import chat_service, cost_service, pricing_service
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -78,6 +86,7 @@ async def chat_stream(
         "messages": [HumanMessage(body.message)],
         "campaign_topic": body.message,
         "retrieved_rag_context": [],
+        "retrieved_sources": [],
         "web_search_context": [],
         "guardrail_violation": None,
         "outline": None,
@@ -119,6 +128,20 @@ async def chat_resume(
     )
 
 
+@router.get("/models", response_model=list[ModelOption])
+async def list_models(_: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    """Model đang active cho người dùng chọn (model mặc định đứng đầu)."""
+    return [
+        ModelOption(
+            model_id=m.model_id,
+            provider=m.provider,
+            is_default=m.is_default,
+            available=llm_factory.provider_configured(m.provider),
+        )
+        for m in await pricing_service.list_active(session)
+    ]
+
+
 @router.get("/threads", response_model=list[ThreadOut])
 async def list_threads(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     return await chat_service.list_threads(session, user.id)
@@ -131,3 +154,16 @@ async def list_messages(
     if await chat_service.get_owned_thread(session, user.id, thread_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found")
     return await chat_service.list_messages(session, thread_id)
+
+
+@router.get("/threads/{thread_id}/state", response_model=ThreadStateOut)
+async def thread_state(
+    thread_id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+):
+    """HITL đang chờ (để mở lại modal duyệt khi load lại thread) + tổng token/chi phí của thread."""
+    if await chat_service.get_owned_thread(session, user.id, thread_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found")
+    payload = await pending_interrupt(await get_graph(), thread_id)
+    pending = PendingInterrupt(**interrupt_event(payload)) if payload is not None else None
+    tokens, cost = await cost_service.thread_totals(thread_id)
+    return ThreadStateOut(thread_id=thread_id, pending=pending, total_tokens=tokens, total_cost_usd=float(cost))

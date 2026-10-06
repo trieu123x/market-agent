@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # Origin của frontend được gọi API trực tiếp (CORS). Env: CORS_ORIGINS='["http://localhost:3010"]'
+    cors_origins: list[str] = ["http://localhost:3010"]
+
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5434/market_agent_db"
     redis_url: str = "redis://localhost:6380/0"
 
@@ -36,6 +39,11 @@ class Settings(BaseSettings):
     # Gemini embedding (dùng GOOGLE_API_KEY), cắt về 1536 chiều.
     embedding_model: str = "gemini-embedding-001"
     embedding_batch_size: int = 64
+
+    # Cross-Encoder rerank top 15 RRF → top 4 (sentence-transformers, CPU). Model đa ngôn ngữ, có tiếng Việt.
+    reranker_enabled: bool = True
+    reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+    reranker_max_length: int = 512
 
     chunk_tokens: int = 800
     chunk_overlap_tokens: int = 150

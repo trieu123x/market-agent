@@ -15,6 +15,7 @@ def hitl_outline(state: AgentState) -> dict:
             "stage": STAGE,
             "message": "Dàn ý chiến dịch đã sẵn sàng. Vui lòng kiểm tra và duyệt.",
             "outline": state["outline"],
+            "sources": state.get("retrieved_sources", []),
         }
     )
     action = str(decision.get("action", "approve")).lower()

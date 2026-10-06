@@ -209,7 +209,15 @@ async def test_rag_context_is_isolated_in_prompt(client, fake_llm):
             break
         await asyncio.sleep(0.25)
 
-    await chat(client, user, tid, message=f"Lên chiến dịch ra mắt {marker}")
+    events = await chat(client, user, tid, message=f"Lên chiến dịch ra mắt {marker}")
+    # Chunk đã tra cứu đi kèm interrupt duyệt dàn ý và được lưu vào thẻ dàn ý trong lịch sử
+    sources = events[-1][1]["data"]["sources"]
+    hit = next(s for s in sources if s["document_id"] == doc_id)
+    assert hit["ref"] >= 1 and marker in hit["content"] and hit["document_title"] == "brief.txt"
+    msgs = (await client.get(f"/api/v1/agent/threads/{tid}/messages", headers=user)).json()
+    card = next(m for m in msgs if m["content_type"] == "OUTLINE_CARD")
+    assert card["metadata"]["sources"] == sources
+
     await resume(client, user, tid, "APPROVE")
     for role in ("outline", "generator", "fact_checker"):
         prompt = fake_llm.calls(role)[-1][-1].content
@@ -251,3 +259,47 @@ async def test_rate_limit_returns_429(client, fake_llm, monkeypatch):
     await chat(client, user, new_thread_id())
     r = await client.post("/api/v1/agent/chat/stream", headers=user, json={"thread_id": new_thread_id(), "message": "hi"})
     assert r.status_code == 429
+
+
+async def test_list_models_returns_active_with_default_first(client):
+    user = await register_and_login(client)
+    assert (await client.get("/api/v1/agent/models")).status_code == 401
+    r = await client.get("/api/v1/agent/models", headers=user)
+    assert r.status_code == 200
+    models = r.json()
+    assert models and models[0]["is_default"] and sum(m["is_default"] for m in models) == 1
+    async with SessionLocal() as s:
+        active = {m.model_id for m in await pricing_service.list_active(s)}
+    assert {m["model_id"] for m in models} == active
+    assert all(set(m) == {"model_id", "provider", "is_default", "available"} for m in models)
+
+
+async def test_cors_preflight_exposes_thread_header(client):
+    r = await client.options(
+        "/api/v1/agent/chat/stream",
+        headers={"Origin": "http://localhost:3010", "Access-Control-Request-Method": "POST"},
+    )
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] == "http://localhost:3010"
+    r = await client.get("/health", headers={"Origin": "http://localhost:3010"})
+    assert "X-Thread-Id" in r.headers["access-control-expose-headers"]
+
+
+async def test_thread_state_reports_pending_hitl_and_totals(client, fake_llm):
+    user, tid = await register_and_login(client), new_thread_id()
+    events = await chat(client, user, tid)
+    r = await client.get(f"/api/v1/agent/threads/{tid}/state", headers=user)
+    assert r.status_code == 200
+    state = r.json()
+    assert state["pending"] == events[-1][1]  # giống hệt event hitl_interrupt
+    assert state["total_tokens"] == sum(c["tokens"] for c in of(events, "cost_update")) > 0
+
+    await resume(client, user, tid, "APPROVE")
+    assert (await client.get(f"/api/v1/agent/threads/{tid}/state", headers=user)).json()["pending"]["stage"] == (
+        "DRAFTS_APPROVAL"
+    )
+    await resume(client, user, tid, "APPROVE", stage="DRAFTS_APPROVAL")
+    assert (await client.get(f"/api/v1/agent/threads/{tid}/state", headers=user)).json()["pending"] is None
+
+    other = await register_and_login(client)
+    assert (await client.get(f"/api/v1/agent/threads/{tid}/state", headers=other)).status_code == 404

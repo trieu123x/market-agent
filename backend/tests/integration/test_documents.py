@@ -65,6 +65,27 @@ async def test_pdf_upload_ready_and_private_scope_isolation(client):
     assert doc["processing_status"] == "READY", doc["error_message"]
     assert doc["chunk_count"] >= 2
 
+    # Tiến độ từng bước: parse đếm theo trang, embed/save đếm theo chunk
+    progress = doc["ingest_progress"]
+    steps = progress["steps"]
+    assert progress["stage"] == "save" and progress["heartbeat_at"]
+    assert [steps[s]["status"] for s in ("parse", "chunk", "embed", "save")] == ["done"] * 4
+    assert (steps["parse"]["done"], steps["parse"]["total"], steps["parse"]["unit"]) == (3, 3, "trang")
+    for name in ("chunk", "embed", "save"):
+        assert steps[name]["done"] == steps[name]["total"] == doc["chunk_count"], name
+    assert all(steps[s]["started_at"] <= steps[s]["finished_at"] for s in steps)
+
+    # Xem chunk của tài liệu: đúng thứ tự, đủ số lượng, phân trang, user khác không xem được
+    url = f"/api/v1/documents/{body['document_id']}/chunks"
+    page = (await client.get(url, headers=user_a)).json()
+    assert page["total"] == doc["chunk_count"] and page["offset"] == 0
+    assert [c["chunk_index"] for c in page["items"]] == list(range(doc["chunk_count"]))
+    assert any(marker in c["content"] for c in page["items"])
+    assert "token_count" in page["items"][0]["metadata"]
+    tail = (await client.get(f"{url}?offset=1&limit=1", headers=user_a)).json()
+    assert [c["chunk_index"] for c in tail["items"]] == [1] and tail["total"] == page["total"]
+    assert (await client.get(url, headers=user_b)).status_code == 404
+
     hits = await _search(client, user_a, f"when does {marker} launch")
     assert hits and hits[0]["document_id"] == body["document_id"]
     assert marker in hits[0]["content"]
@@ -135,3 +156,16 @@ async def test_upload_validation(client):
         assert r.status_code == 400, bad
 
     assert (await client.post(url, files={"file": ("a.txt", b"x", "text/plain")})).status_code == 401
+
+
+async def test_failed_ingest_reports_failed_step(client):
+    user = await _token(client, _new_email())
+    r = await client.post(
+        "/api/v1/documents/upload", headers=user, files={"file": ("blank.txt", b"   \n\n   \n", "text/plain")}
+    )
+    assert r.status_code == 202, r.text
+    doc = await _wait_ready(client, user, r.json()["document_id"])
+    assert doc["processing_status"] == "FAILED"
+    steps = doc["ingest_progress"]["steps"]
+    assert doc["ingest_progress"]["stage"] == "chunk"
+    assert [steps[s]["status"] for s in ("parse", "chunk", "embed", "save")] == ["done", "failed", "pending", "pending"]

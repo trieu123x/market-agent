@@ -31,5 +31,56 @@ services:
       timeout: 3s
       retries: 10
 
+
+  # --- App (profile "full"): docker compose -f infra/docker-compose.yml --profile full up --build ---
+  api:
+    profiles: ["full"]
+    build: ../backend
+    container_name: market_api
+    env_file: ../backend/.env
+    environment: &backend_env
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/market_agent_db
+      REDIS_URL: redis://redis:6379/0
+      TASK_BROKER: redis
+      RATE_LIMIT_BACKEND: redis
+      CORS_ORIGINS: '["http://localhost:3010"]'
+    ports:
+      - "8010:8000"
+    volumes:
+      - market_uploads:/app/storage/uploads
+      - market_hf_cache:/app/.cache/huggingface  # model Cross-Encoder reranker, chỉ tải lần đầu
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    profiles: ["full"]
+    build: ../backend
+    container_name: market_worker
+    command: ["taskiq", "worker", "app.workers.broker:broker", "app.workers.tasks"]
+    env_file: ../backend/.env
+    environment: *backend_env
+    volumes:
+      - market_uploads:/app/storage/uploads
+    depends_on:
+      api:
+        condition: service_started
+
+  web:
+    profiles: ["full"]
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8010
+    container_name: market_web
+    ports:
+      - "3010:3010"
+    depends_on:
+      - api
+
 volumes:
   market_pgdata:
+  market_uploads:
+  market_hf_cache:

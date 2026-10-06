@@ -29,6 +29,12 @@ async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)
     return TokenResponse(access_token=create_access_token(str(user.id), user.role))
 
 
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(user: User = Depends(get_current_user)):
+    """Đổi token còn hạn lấy token mới (sliding session); role lấy lại từ DB."""
+    return TokenResponse(access_token=create_access_token(str(user.id), user.role))
+
+
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)):
     return user

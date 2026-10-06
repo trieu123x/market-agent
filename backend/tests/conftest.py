@@ -8,6 +8,7 @@ import uuid
 # Test chạy không cần Redis: task chạy in-process.
 os.environ.setdefault("TASK_BROKER", "memory")
 os.environ.setdefault("RATE_LIMIT_BACKEND", "memory")
+os.environ.setdefault("RERANKER_ENABLED", "false")  # không tải model trong test; test reranker dùng model giả
 os.environ.setdefault("UPLOAD_DIR", os.path.join(tempfile.gettempdir(), "market_agent_test_uploads"))
 
 import json  # noqa: E402

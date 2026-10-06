@@ -25,6 +25,12 @@ def provider_for(model_id: str) -> str:
     raise LLMConfigError(f"Không xác định được provider cho model '{model_id}'")
 
 
+def provider_configured(provider: str) -> bool:
+    """Provider đã có API key chưa (để UI ẩn/khóa model không gọi được)."""
+    s = get_settings()
+    return bool({"openai": s.openai_api_key, "anthropic": s.anthropic_api_key, "google": s.google_api_key}.get(provider))
+
+
 def _require_key(value: str, env_name: str) -> str:
     if not value:
         raise LLMConfigError(f"{env_name} trống – không gọi được model này")

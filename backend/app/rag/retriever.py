@@ -27,7 +27,8 @@ class RetrievedChunk:
     chunk_index: int
     content: str
     metadata: dict
-    score: float = 0.0
+    score: float = 0.0  # điểm RRF
+    rerank_score: float | None = None  # điểm Cross-Encoder (None nếu reranker tắt/lỗi)
     ranks: dict[str, int] = field(default_factory=dict)
 
 

@@ -37,6 +37,13 @@ class ChatResumeRequest(BaseModel):
         return self
 
 
+class ModelOption(BaseModel):
+    model_id: str
+    provider: str
+    is_default: bool
+    available: bool  # provider đã cấu hình API key
+
+
 class ThreadOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,6 +51,19 @@ class ThreadOut(BaseModel):
     title: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class PendingInterrupt(BaseModel):
+    stage: str
+    message: str | None
+    data: dict
+
+
+class ThreadStateOut(BaseModel):
+    thread_id: str
+    pending: PendingInterrupt | None  # HITL đang chờ duyệt (None nếu không)
+    total_tokens: int
+    total_cost_usd: float
 
 
 class ThreadMessageOut(BaseModel):
