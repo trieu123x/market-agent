@@ -29,7 +29,7 @@ export function LivePanel({ status, outline, drafts, streaming }: Props) {
   const [picked, setPicked] = useState<Platform | null>(null);
   const hasDrafts = PLATFORMS.some((p) => drafts[p]);
   // Mặc định bám theo kênh đang nhận token cuối cùng có nội dung
-  const active = picked ?? PLATFORMS.findLast((p) => drafts[p]) ?? "linkedin";
+  const active = picked ?? PLATFORMS.findLast((p) => drafts[p]) ?? "facebook";
   const currentIdx = STEPS.findIndex(([step]) => step === status?.step);
 
   return (

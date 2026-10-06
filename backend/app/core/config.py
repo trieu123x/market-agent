@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
     reranker_max_length: int = 512
 
+    # Gemini phân tích ảnh đính kèm khi chat (dùng GOOGLE_API_KEY)
+    vision_model: str = "gemini-2.5-flash"
+
     chunk_tokens: int = 800
     chunk_overlap_tokens: int = 150
 

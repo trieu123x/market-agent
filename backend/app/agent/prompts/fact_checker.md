@@ -8,5 +8,5 @@ Cần bắt lỗi:
 Không bắt lỗi văn phong, ý kiến chủ quan hay lời kêu gọi hành động chung chung.
 
 Trả về DUY NHẤT một JSON object, không markdown, đúng schema:
-{"passed": true|false, "summary": "<1 câu tiếng Việt>", "issues": [{"platform": "linkedin|twitter|facebook", "claim": "<trích nguyên văn>", "problem": "<vì sao sai/không có nguồn>", "suggestion": "<cách sửa>"}]}
+{"passed": true|false, "summary": "<1 câu tiếng Việt>", "issues": [{"platform": "facebook|instagram|threads", "claim": "<trích nguyên văn>", "problem": "<vì sao sai/không có nguồn>", "suggestion": "<cách sửa>"}]}
 "passed" = true khi và chỉ khi "issues" rỗng.

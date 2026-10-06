@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import { api, errorText } from "@/lib/api";
 import { postEventStream } from "@/lib/sse";
-import type { ThreadState } from "@/types/api";
+import type { ChatAttachment, ThreadState } from "@/types/api";
 import {
   emptyDrafts,
   type AgentEvent,
@@ -141,9 +141,10 @@ export function useAgentStream({ onSettled }: Options = {}) {
   );
 
   const send = useCallback(
-    (message: string, modelId?: string) => {
+    (message: string, modelId?: string, attachments: ChatAttachment[] = []) => {
       const threadId = threadRef.current;
-      return run("/api/v1/agent/chat/stream", { thread_id: threadId, message, model_id: modelId || null }, threadId);
+      const body = { thread_id: threadId, message, model_id: modelId || null, attachments };
+      return run("/api/v1/agent/chat/stream", body, threadId);
     },
     [run],
   );

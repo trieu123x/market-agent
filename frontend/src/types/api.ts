@@ -38,6 +38,19 @@ export interface ThreadMessage {
   created_at: string;
 }
 
+/** Nội dung đã trích từ tệp đính kèm (POST /api/v1/agent/attachments), gửi kèm brief. */
+export interface ChatAttachment {
+  kind: "image" | "document";
+  filename: string;
+  text: string;
+  truncated: boolean;
+}
+
+export interface AttachmentUpload extends ChatAttachment {
+  mime_type: string;
+  size_bytes: number;
+}
+
 export interface ThreadState {
   thread_id: string;
   pending: HitlInterruptEvent | null;

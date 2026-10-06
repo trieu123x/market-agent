@@ -18,7 +18,7 @@ NODE_STATUS = {
     "input_guardrail": ("INPUT_GUARDRAIL", "Đang kiểm tra an toàn nội dung..."),
     "intent_rag": ("RAG_RETRIEVAL", "Đang phân tích brief và truy xuất tài liệu..."),
     "generate_outline": ("GENERATING_OUTLINE", "Đang soạn dàn ý chiến dịch..."),
-    "multi_format_generator": ("GENERATING_DRAFTS", "Đang viết bản thảo LinkedIn, X, Facebook..."),
+    "multi_format_generator": ("GENERATING_DRAFTS", "Đang viết bản thảo Facebook, Instagram, Threads..."),
     "fact_checker": ("FACT_CHECKING", "Đang đối soát số liệu..."),
     "refine_generator": ("REFINING_DRAFTS", "Đang sửa bản thảo theo kết quả fact-check..."),
     "finalize_log": ("FINALIZING", "Đang lưu bản thảo cuối..."),

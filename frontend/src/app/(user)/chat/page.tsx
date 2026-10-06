@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ChatWindow } from "@/components/chat/ChatWindow";
+import { ChatWindow, type PendingUserMessage } from "@/components/chat/ChatWindow";
 import { CostBar } from "@/components/chat/CostBar";
 import { LivePanel } from "@/components/chat/LivePanel";
 import { ThreadSidebar } from "@/components/chat/ThreadSidebar";
@@ -11,7 +11,7 @@ import { OutlineApprovalModal } from "@/components/hitl/OutlineApprovalModal";
 import { Alert, Button } from "@/components/ui";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { api, errorText } from "@/lib/api";
-import type { ModelOption, Thread, ThreadMessage } from "@/types/api";
+import type { ChatAttachment, ModelOption, Thread, ThreadMessage } from "@/types/api";
 import type { ResumeDecision } from "@/types/events";
 
 /** Đồng bộ ?thread= trên URL để reload trang vẫn mở đúng chiến dịch. */
@@ -27,7 +27,7 @@ export default function ChatPage() {
   const [history, setHistory] = useState<ThreadMessage[]>([]);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelId, setModelId] = useState("");
-  const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+  const [pendingUser, setPendingUser] = useState<PendingUserMessage | null>(null);
   // Giữ phần đang stream trên màn hình tới khi lịch sử từ server đã tải xong (tránh nháy)
   const [syncing, setSyncing] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
@@ -60,7 +60,7 @@ export default function ChatPage() {
         writeThreadParam(threadId);
         await Promise.all([loadHistory(threadId), loadThreads()]);
       }
-      setPendingUserText(null);
+      setPendingUser(null);
       setSyncing(false);
     },
     [loadHistory, loadThreads],
@@ -98,11 +98,11 @@ export default function ChatPage() {
   const streaming = agent.phase === "streaming";
   const busy = streaming || syncing;
 
-  function handleSend(text: string) {
-    setPendingUserText(text);
+  function handleSend(text: string, attachments: ChatAttachment[]) {
+    setPendingUser({ text, attachments });
     setSyncing(true);
     setRunKey((k) => k + 1);
-    void send(text, modelId);
+    void send(text, modelId, attachments);
   }
 
   function handleDecision(decision: ResumeDecision) {
@@ -180,8 +180,9 @@ export default function ChatPage() {
 
         <div className="min-h-0 flex-1">
           <ChatWindow
+            threadId={agent.threadId}
             history={history}
-            pendingUserText={pendingUserText}
+            pendingUser={pendingUser}
             live={
               busy ? (
                 <LivePanel

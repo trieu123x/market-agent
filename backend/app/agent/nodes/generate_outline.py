@@ -1,12 +1,12 @@
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.agent import llm_factory
-from app.agent.prompts import external_context, load_prompt
+from app.agent.prompts import load_prompt, reference_context
 from app.agent.state import AgentState
 
 
 def _user_prompt(state: AgentState) -> str:
-    parts = [external_context(state.get("retrieved_rag_context", [])), f"Brief chiến dịch:\n{state['campaign_topic']}"]
+    parts = [reference_context(state), f"Brief chiến dịch:\n{state['campaign_topic']}"]
     if feedback := state.get("outline_feedback"):
         parts.append(f"Dàn ý trước đã bị từ chối:\n{state.get('outline') or ''}")
         parts.append(f"Phản hồi của người dùng (ưu tiên làm theo):\n{feedback}")

@@ -5,27 +5,30 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agent import llm_factory
-from app.agent.prompts import external_context, load_prompt
+from app.agent.prompts import load_prompt, reference_context
 from app.agent.state import PLATFORMS, AgentState
 from app.guardrails.output_scanner import redact_secrets
 
 logger = logging.getLogger(__name__)
 
 PLATFORM_RULES = {
-    "linkedin": "Kênh: LinkedIn. 120–250 từ, giọng chuyên nghiệp. Câu đầu là hook nêu insight hoặc vấn đề; "
-    "đoạn ngắn, xuống dòng nhiều; kết bằng call-to-action; tối đa 3 hashtag ở cuối.",
-    "twitter": "Kênh: X (Twitter). Một thread 3–5 tweet, mỗi tweet tối đa 280 ký tự, đánh số 1/, 2/, ...; "
-    "tweet đầu là hook; tối đa 2 hashtag cho cả thread.",
     "facebook": "Kênh: Facebook. 80–180 từ, giọng gần gũi, đoạn ngắn, có thể dùng 1–3 emoji; "
     "kết bằng call-to-action rõ ràng.",
+    "instagram": "Kênh: Instagram. Caption 60–150 từ, giọng trẻ trung, giàu hình ảnh. Dòng đầu (dưới 125 ký tự) "
+    "là hook vì bị cắt sau \"... xem thêm\"; đoạn ngắn, 2–4 emoji; kết bằng call-to-action (vd. link ở bio, "
+    "lưu bài, nhắn tin); 5–10 hashtag ở cuối, trộn hashtag tiếng Việt và ngách. Mở đầu bằng một dòng "
+    "[Gợi ý hình ảnh: ...] mô tả ảnh/carousel đi kèm.",
+    "threads": "Kênh: Threads. Một chuỗi 3–5 bài, mỗi bài tối đa 500 ký tự, đánh số 1/, 2/, ..., các bài cách nhau "
+    "một dòng trống; giọng trò chuyện, thẳng thắn như đang tán gẫu; bài đầu là hook gây tò mò hoặc nêu "
+    "quan điểm; bài cuối mời bình luận hoặc call-to-action; tối đa 1 hashtag (topic tag) cho cả chuỗi.",
 }
 
 
 def source_block(state: AgentState) -> str:
-    """NGUỒN dùng chung cho generator / fact-checker / refine: tài liệu RAG (cách ly), brief, dàn ý đã duyệt."""
+    """NGUỒN dùng chung cho generator / fact-checker / refine: tệp đính kèm + tài liệu RAG (cách ly), brief, dàn ý đã duyệt."""
     return "\n\n".join(
         [
-            external_context(state.get("retrieved_rag_context", [])),
+            reference_context(state),
             f"Brief chiến dịch:\n{state['campaign_topic']}",
             f"Dàn ý đã duyệt:\n{state.get('outline') or ''}",
         ]
@@ -44,7 +47,7 @@ async def write_post(llm: BaseChatModel, system_prompt: str, user_prompt: str, p
 
 
 async def multi_format_generator(state: AgentState) -> dict:
-    """Viết song song 3 bản thảo LinkedIn / X / Facebook từ dàn ý đã duyệt."""
+    """Viết song song 3 bản thảo Facebook / Instagram / Threads từ dàn ý đã duyệt."""
     llm = llm_factory.get_chat_model(state["selected_model"])
     system_prompt, sources = load_prompt("generator"), source_block(state)
     posts = await asyncio.gather(

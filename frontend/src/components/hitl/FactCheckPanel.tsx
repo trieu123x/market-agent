@@ -4,7 +4,7 @@ import { PLATFORM_LABELS, PLATFORMS, type FactCheckReport, type Platform } from 
 const platformLabel = (p: string) => PLATFORM_LABELS[p as Platform] ?? (p || "Chung");
 
 export function issuesByPlatform(report: FactCheckReport | null): Record<Platform, number> {
-  const counts = { linkedin: 0, twitter: 0, facebook: 0 };
+  const counts = { facebook: 0, instagram: 0, threads: 0 };
   for (const i of report?.issues ?? []) {
     if (i.platform in counts) counts[i.platform as Platform] += 1;
   }

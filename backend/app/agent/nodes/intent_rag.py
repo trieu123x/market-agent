@@ -7,6 +7,8 @@ from app.rag.retriever import RetrievedChunk, retrieve
 
 logger = logging.getLogger(__name__)
 
+RAG_QUERY_ATTACHMENT_CHARS = 500
+
 
 def _format_chunk(i: int, chunk: RetrievedChunk) -> str:
     return f"[{i}] {chunk.document_title} (đoạn {chunk.chunk_index})\n{chunk.content}"
@@ -28,9 +30,11 @@ def _source(i: int, chunk: RetrievedChunk) -> RagSource:
 
 async def intent_rag(state: AgentState) -> dict:
     """Truy xuất tài liệu theo brief (kèm phản hồi reject nếu có). Lỗi RAG không chặn luồng, chỉ bỏ context."""
-    query = state["campaign_topic"]
+    # Kèm phần đầu tệp đính kèm (vd. mô tả ảnh) để brief kiểu "viết về sản phẩm trong ảnh" vẫn tra được tài liệu
+    parts = [state["campaign_topic"], *(a[:RAG_QUERY_ATTACHMENT_CHARS] for a in state.get("attachment_context", []))]
     if feedback := state.get("outline_feedback"):
-        query = f"{query}\n{feedback}"
+        parts.append(feedback)
+    query = "\n".join(parts)
     try:
         async with SessionLocal() as session:
             chunks = await retrieve(session, query, uuid.UUID(state["user_id"]))

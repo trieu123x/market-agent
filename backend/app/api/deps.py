@@ -1,7 +1,7 @@
 import uuid
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,3 +35,13 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "ADMIN":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
     return user
+
+
+async def read_upload(file: UploadFile, limit: int) -> bytes:
+    """Đọc file upload, lỗi nếu rỗng hoặc vượt giới hạn dung lượng."""
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"File vượt quá {limit // (1024 * 1024)}MB")
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File rỗng")
+    return data

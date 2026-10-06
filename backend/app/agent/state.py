@@ -4,7 +4,7 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 
-PLATFORMS = ("linkedin", "twitter", "facebook")
+PLATFORMS = ("facebook", "instagram", "threads")
 MAX_REFINES = 2  # spec: refine khi còn lỗi và retry < 2
 
 
@@ -49,6 +49,7 @@ class AgentState(TypedDict, total=False):
 
     # Brief & RAG context (campaign_topic đã che PII)
     campaign_topic: str
+    attachment_context: list[str]  # tệp người dùng đính kèm (đã trích text, che PII), đứng trước RAG
     retrieved_rag_context: list[str]
     retrieved_sources: list[RagSource]
     web_search_context: list[str]
@@ -59,7 +60,7 @@ class AgentState(TypedDict, total=False):
     outline_status: Optional[str]  # "approved" | "edited" | "rejected"
     outline_feedback: Optional[str]  # lý do reject, dùng cho lượt sinh dàn ý kế tiếp
 
-    # Bản thảo đa kênh: {"linkedin": "...", "twitter": "...", "facebook": "..."}
+    # Bản thảo đa kênh: {"facebook": "...", "instagram": "...", "threads": "..."}
     drafts: dict[str, str]
 
     # Fact-checking & self-correction

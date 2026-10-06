@@ -31,13 +31,13 @@ def test_find_cliches():
 def test_parse_checker_output_variants():
     ok = '{"passed": true, "summary": "Ổn", "issues": []}'
     assert parse_checker_output(ok) == (True, "Ổn", [])
-    fenced = '```json\n{"passed": false, "summary": "Sai", "issues": [{"platform": "LinkedIn", "claim": "50%",' \
+    fenced = '```json\n{"passed": false, "summary": "Sai", "issues": [{"platform": "Instagram", "claim": "50%",' \
         ' "problem": "không có nguồn", "suggestion": "bỏ"}]}\n```'
     passed, summary, issues = parse_checker_output(fenced)
     assert passed is False and summary == "Sai"
-    assert issues == [{"platform": "linkedin", "kind": "fact", "claim": "50%", "problem": "không có nguồn", "suggestion": "bỏ"}]
+    assert issues == [{"platform": "instagram", "kind": "fact", "claim": "50%", "problem": "không có nguồn", "suggestion": "bỏ"}]
     # passed=true nhưng vẫn có issue → coi là fail
-    contradictory = '{"passed": true, "issues": [{"platform": "twitter", "claim": "x"}]}'
+    contradictory = '{"passed": true, "issues": [{"platform": "threads", "claim": "x"}]}'
     assert parse_checker_output(contradictory)[0] is False
     assert parse_checker_output("Tôi không chắc.") is None
     assert parse_checker_output('{"passed": true, "issues": "none"}') is None

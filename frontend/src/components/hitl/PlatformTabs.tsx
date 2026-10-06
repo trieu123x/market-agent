@@ -29,10 +29,10 @@ export function PlatformTabs({ active, onChange, notes = {} }: Props) {
   );
 }
 
-/** Thread X: các tweet cách nhau bởi dòng trống; trả số tweet vượt 280 ký tự. */
-export function overlongTweets(text: string): number {
+/** Chuỗi Threads: các bài cách nhau bởi dòng trống; trả số bài vượt 500 ký tự. */
+export function overlongThreadPosts(text: string): number {
   return text
     .split(/\n\s*\n/)
     .map((t) => t.trim())
-    .filter((t) => [...t].length > 280).length;
+    .filter((t) => [...t].length > 500).length;
 }

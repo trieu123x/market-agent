@@ -5,14 +5,30 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agent.state import PLATFORMS
+from app.services.attachment_service import MAX_ATTACHMENT_CHARS, MAX_ATTACHMENTS
 
 ThreadId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_.:-]{1,100}$")]
+
+
+class ChatAttachment(BaseModel):
+    """Nội dung đã trích từ /agent/attachments, client gửi kèm brief."""
+
+    kind: Literal["image", "document"]
+    filename: str = Field(min_length=1, max_length=255)
+    text: str = Field(min_length=1, max_length=MAX_ATTACHMENT_CHARS + 50)  # + chỗ cho dấu "…" khi cắt
+    truncated: bool = False
+
+
+class AttachmentOut(ChatAttachment):
+    mime_type: str
+    size_bytes: int
 
 
 class ChatStreamRequest(BaseModel):
     thread_id: ThreadId | None = None  # None → server tự sinh, trả về trong event status đầu tiên
     message: str = Field(min_length=1, max_length=8000)
     model_id: str | None = None  # None → model mặc định trong model_pricing
+    attachments: list[ChatAttachment] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
 
 
 class ChatResumeRequest(BaseModel):

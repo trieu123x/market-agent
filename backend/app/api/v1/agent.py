@@ -2,7 +2,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent import llm_factory
 from app.agent.graph import get_graph, pending_interrupt, thread_config
 from app.agent.streaming import format_sse, interrupt_event, stream_graph
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, read_upload
+from app.core.config import get_settings
 from app.db.models import User
 from app.db.session import get_session
 from app.guardrails.input_filter import detect_jailbreak
 from app.guardrails.rate_limiter import get_rate_limiter
 from app.schemas.agent import (
+    AttachmentOut,
     ChatResumeRequest,
     ChatStreamRequest,
     ModelOption,
@@ -25,7 +27,7 @@ from app.schemas.agent import (
     ThreadOut,
     ThreadStateOut,
 )
-from app.services import chat_service, cost_service, pricing_service
+from app.services import attachment_service, chat_service, cost_service, pricing_service
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -75,7 +77,9 @@ async def chat_stream(
     if await pending_interrupt(await get_graph(), thread_id) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Thread đang chờ duyệt, dùng /agent/chat/resume")
 
-    chat_service.add_message(session, thread_id, "USER", body.message)
+    attachments = [a.model_dump() for a in body.attachments]
+    metadata = {"attachments": attachments} if attachments else None
+    chat_service.add_message(session, thread_id, "USER", body.message, metadata=metadata)
     await session.commit()
 
     # Reset các field của lượt trước: thread đã xong có thể bắt đầu brief mới
@@ -85,6 +89,7 @@ async def chat_stream(
         "selected_model": pricing.model_id,
         "messages": [HumanMessage(body.message)],
         "campaign_topic": body.message,
+        "attachment_context": [attachment_service.format_for_context(**a) for a in attachments],
         "retrieved_rag_context": [],
         "retrieved_sources": [],
         "web_search_context": [],
@@ -99,6 +104,28 @@ async def chat_stream(
         "drafts_status": None,
     }
     return _sse_response(graph_input, thread_id, user.id, pricing.model_id)
+
+
+@router.post("/attachments", response_model=AttachmentOut)
+async def upload_attachment(
+    file: UploadFile = File(...),
+    thread_id: str | None = Form(default=None),
+    user: User = Depends(rate_limit),
+    session: AsyncSession = Depends(get_session),
+):
+    """Trích nội dung tệp đính kèm cho lượt chat: tài liệu qua parser RAG, ảnh qua Gemini.
+    Không lưu file; client gửi lại kết quả trong `attachments` của /chat/stream."""
+    data = await read_upload(file, get_settings().max_upload_bytes)
+    # Chỉ gắn chi phí phân tích ảnh vào thread của chính user; thread mới (chưa tạo) → NULL
+    if thread_id and await chat_service.get_owned_thread(session, user.id, thread_id) is None:
+        thread_id = None
+    try:
+        att = await attachment_service.process(file.filename or "upload", data, user.id, thread_id)
+    except attachment_service.AttachmentError as e:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(e))
+    except attachment_service.VisionError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
+    return AttachmentOut(**vars(att))
 
 
 @router.post("/chat/resume")

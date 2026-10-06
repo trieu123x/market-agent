@@ -7,8 +7,9 @@ import { PlatformTabs } from "@/components/hitl/PlatformTabs";
 import { RagSourcesPanel } from "@/components/hitl/RagSourcesPanel";
 import { Badge } from "@/components/ui";
 import { Markdown } from "@/components/ui/Markdown";
-import type { ThreadMessage } from "@/types/api";
+import type { ChatAttachment, ThreadMessage } from "@/types/api";
 import type { Drafts, FactCheckReport, Platform, RagSource } from "@/types/events";
+import { AttachmentList } from "./Attachments";
 
 const DECISION_LABELS: Record<string, string> = {
   APPROVE: "Đã duyệt",
@@ -28,10 +29,11 @@ function parseJson<T>(s: string): T | null {
   }
 }
 
-export function UserBubble({ text }: { text: string }) {
+export function UserBubble({ text, attachments = [] }: { text: string; attachments?: ChatAttachment[] }) {
   return (
-    <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-lg bg-accent px-3 py-2 text-sm whitespace-pre-wrap text-accent-fg">{text}</div>
+    <div className="ml-auto flex max-w-[85%] flex-col items-end gap-1.5">
+      <AttachmentList items={attachments} />
+      <div className="rounded-lg bg-accent px-3 py-2 text-sm whitespace-pre-wrap text-accent-fg">{text}</div>
     </div>
   );
 }
@@ -49,7 +51,7 @@ function AssistantCard({ title, badge, children }: { title: string; badge?: Reac
 }
 
 export function DraftsCard({ drafts, title, badge }: { drafts: Drafts; title: string; badge?: React.ReactNode }) {
-  const [active, setActive] = useState<Platform>("linkedin");
+  const [active, setActive] = useState<Platform>("facebook");
   return (
     <AssistantCard title={title} badge={badge}>
       <PlatformTabs active={active} onChange={setActive} />
@@ -61,7 +63,10 @@ export function DraftsCard({ drafts, title, badge }: { drafts: Drafts; title: st
 }
 
 export function HistoryMessage({ msg }: { msg: ThreadMessage }) {
-  if (msg.sender_role === "USER") return <UserBubble text={msg.content} />;
+  if (msg.sender_role === "USER") {
+    const attachments = (msg.metadata.attachments as ChatAttachment[] | undefined) ?? [];
+    return <UserBubble text={msg.content} attachments={attachments} />;
+  }
 
   if (msg.sender_role === "HUMAN_INTERRUPT") {
     const meta = msg.metadata as { stage?: string; feedback?: string; updated_outline?: string };

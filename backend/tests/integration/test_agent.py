@@ -90,11 +90,11 @@ async def test_outline_reject_then_edit_continues_to_drafts(client, fake_llm):
     user, tid = await register_and_login(client), new_thread_id()
     await chat(client, user, tid)
 
-    events = await resume(client, user, tid, "REJECT", feedback="Tập trung vào kênh LinkedIn, gọi 0912345678")
+    events = await resume(client, user, tid, "REJECT", feedback="Tập trung vào kênh Instagram, gọi 0912345678")
     assert steps(events) == ["STARTED", "RAG_RETRIEVAL", "GENERATING_OUTLINE"]
     assert events[-1][0] == "hitl_interrupt" and events[-1][1]["stage"] == "OUTLINE_APPROVAL"
     last_prompt = fake_llm.calls("outline")[-1][-1].content
-    assert "Tập trung vào kênh LinkedIn" in last_prompt and OUTLINE in last_prompt
+    assert "Tập trung vào kênh Instagram" in last_prompt and OUTLINE in last_prompt
     assert "0912345678" not in last_prompt and "[PHONE]" in last_prompt
 
     events = await resume(client, user, tid, "EDIT", updated_outline="### Dàn ý đã sửa tay")
@@ -105,7 +105,7 @@ async def test_outline_reject_then_edit_continues_to_drafts(client, fake_llm):
 
 
 async def test_failed_fact_check_refines_at_most_twice(client, fake_llm):
-    issue = {"platform": "twitter", "claim": "3 ngày", "problem": "Không có trong nguồn", "suggestion": "Bỏ số liệu"}
+    issue = {"platform": "threads", "claim": "3 ngày", "problem": "Không có trong nguồn", "suggestion": "Bỏ số liệu"}
     fake_llm.responder = lambda m: (
         json.dumps({"passed": False, "summary": "Có số liệu không nguồn.", "issues": [issue]})
         if role_of(m) == "fact_checker"
@@ -122,15 +122,15 @@ async def test_failed_fact_check_refines_at_most_twice(client, fake_llm):
     ]  # fmt: skip
     assert len(fake_llm.calls("fact_checker")) == 3
     refine_calls = fake_llm.calls("refine")
-    assert len(refine_calls) == 2 and all(platform_of(m) == "twitter" for m in refine_calls)
+    assert len(refine_calls) == 2 and all(platform_of(m) == "threads" for m in refine_calls)
     assert '"3 ngày": Không có trong nguồn' in refine_calls[0][-1].content
-    assert {t["platform"] for t in of(events, "token") if t["node"] == "refine_generator"} == {"twitter"}
+    assert {t["platform"] for t in of(events, "token") if t["node"] == "refine_generator"} == {"threads"}
 
     data = events[-1][1]["data"]
     assert events[-1][1]["stage"] == "DRAFTS_APPROVAL"
     assert data["fact_check_report"]["passed"] is False and data["fact_check_report"]["round"] == 2
-    assert data["drafts"]["twitter"] == "Bản twitter đã sửa theo fact-check."
-    assert data["drafts"]["linkedin"] == DRAFTS["linkedin"]
+    assert data["drafts"]["threads"] == "Bản threads đã sửa theo fact-check."
+    assert data["drafts"]["instagram"] == DRAFTS["instagram"]
 
 
 async def test_cliche_triggers_refine_and_secrets_are_redacted(client, fake_llm):
@@ -138,7 +138,7 @@ async def test_cliche_triggers_refine_and_secrets_are_redacted(client, fake_llm)
 
     def responder(messages):
         role = role_of(messages)
-        if role == "generator" and platform_of(messages) == "linkedin":
+        if role == "generator" and platform_of(messages) == "instagram":
             return "Trong thời đại số, PayNow giúp CFO đối soát nhanh hơn."
         if role == "generator" and platform_of(messages) == "facebook":
             return f"Đăng ký PayNow ngay. api_key: {leaked}"
@@ -151,7 +151,7 @@ async def test_cliche_triggers_refine_and_secrets_are_redacted(client, fake_llm)
 
     assert steps(events)[-3:] == ["FACT_CHECKING", "REFINING_DRAFTS", "FACT_CHECKING"]
     [refine] = fake_llm.calls("refine")
-    assert platform_of(refine) == "linkedin" and '"trong thời đại số": Cụm từ sáo rỗng' in refine[-1].content
+    assert platform_of(refine) == "instagram" and '"trong thời đại số": Cụm từ sáo rỗng' in refine[-1].content
     data = events[-1][1]["data"]
     assert data["fact_check_report"] == {"passed": True, "summary": "Không phát hiện lỗi.", "issues": [], "round": 1}
     assert leaked not in json.dumps(data) and "[REDACTED]" in data["drafts"]["facebook"]
@@ -175,11 +175,11 @@ async def test_drafts_edit_and_resume_validation(client, fake_llm):
     assert (await client.post(url, headers=user, json=body)).status_code == 422
 
     events = await resume(
-        client, user, tid, "EDIT", stage="DRAFTS_APPROVAL", updated_drafts={"twitter": "1/ Bản X sửa tay"}
+        client, user, tid, "EDIT", stage="DRAFTS_APPROVAL", updated_drafts={"threads": "1/ Bản Threads sửa tay"}
     )
     assert events[-1][0] == "complete"
     messages = (await client.get(f"/api/v1/agent/threads/{tid}/messages", headers=user)).json()
-    assert json.loads(messages[-1]["content"]) == {**DRAFTS, "twitter": "1/ Bản X sửa tay"}
+    assert json.loads(messages[-1]["content"]) == {**DRAFTS, "threads": "1/ Bản Threads sửa tay"}
     assert messages[-1]["metadata"]["status"] == "edited"
 
 

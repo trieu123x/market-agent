@@ -6,7 +6,7 @@ import { Badge, Button, inputClass } from "@/components/ui";
 import { Markdown } from "@/components/ui/Markdown";
 import { PLATFORMS, type Drafts, type DraftsInterrupt, type Platform, type ResumeDecision } from "@/types/events";
 import { FactCheckPanel, issuesByPlatform } from "./FactCheckPanel";
-import { overlongTweets, PlatformTabs } from "./PlatformTabs";
+import { overlongThreadPosts, PlatformTabs } from "./PlatformTabs";
 
 interface Props {
   interrupt: DraftsInterrupt;
@@ -18,7 +18,7 @@ interface Props {
 export function DraftsApprovalView({ interrupt, busy, onDecision }: Props) {
   const original = interrupt.data.drafts;
   const report = interrupt.data.fact_check_report;
-  const [active, setActive] = useState<Platform>("linkedin");
+  const [active, setActive] = useState<Platform>("facebook");
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Drafts>(original);
 
@@ -32,7 +32,7 @@ export function DraftsApprovalView({ interrupt, busy, onDecision }: Props) {
   const notes = Object.fromEntries(
     PLATFORMS.map((p) => [p, changed.includes(p) ? "• đã sửa" : counts[p] ? `(${counts[p]})` : ""]),
   );
-  const tooLong = active === "twitter" ? overlongTweets(drafts.twitter) : 0;
+  const tooLong = active === "threads" ? overlongThreadPosts(drafts.threads) : 0;
 
   function approve() {
     if (changed.length === 0) {
@@ -68,7 +68,7 @@ export function DraftsApprovalView({ interrupt, busy, onDecision }: Props) {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span>{[...drafts[active]].length} ký tự</span>
-              {tooLong > 0 && <Badge tone="warning">{tooLong} tweet vượt 280 ký tự</Badge>}
+              {tooLong > 0 && <Badge tone="warning">{tooLong} bài vượt 500 ký tự</Badge>}
               {changed.includes(active) && (
                 <button
                   type="button"

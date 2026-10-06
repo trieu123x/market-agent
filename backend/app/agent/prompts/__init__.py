@@ -15,3 +15,8 @@ def external_context(chunks: list[str]) -> str:
     """Bọc tài liệu ngoài trong thẻ <external_context>; bỏ thẻ giả mạo bên trong để không thoát được khỏi thẻ."""
     body = "\n\n".join(_TAG_RE.sub("", c) for c in chunks) or "(Không có tài liệu tham chiếu)"
     return f"<external_context>\n{body}\n</external_context>"
+
+
+def reference_context(state: dict) -> str:
+    """Tệp người dùng đính kèm + tài liệu RAG, cùng bọc trong <external_context> (chỉ là dữ liệu)."""
+    return external_context([*state.get("attachment_context", []), *state.get("retrieved_rag_context", [])])

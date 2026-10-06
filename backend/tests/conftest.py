@@ -50,9 +50,9 @@ class FakeEmbedder:
 
 OUTLINE = "### Dàn ý chiến dịch: FinTech Launch\n1. **Mục tiêu** – tăng 20% lead\n2. **Đối tượng** – CFO SME"
 DRAFTS = {
-    "linkedin": "CFO SME mất 3 ngày mỗi tháng cho đối soát. PayNow rút còn 1 giờ. #fintech",
-    "twitter": "1/ Đối soát thủ công tốn 3 ngày mỗi tháng.\n\n2/ PayNow làm việc đó trong 1 giờ.",
     "facebook": "Kế toán ơi, cuối tháng đừng thức khuya đối soát nữa! Đăng ký PayNow ngay hôm nay.",
+    "instagram": "CFO SME mất 3 ngày mỗi tháng cho đối soát. PayNow rút còn 1 giờ. #fintech",
+    "threads": "1/ Đối soát thủ công tốn 3 ngày mỗi tháng.\n\n2/ PayNow làm việc đó trong 1 giờ.",
 }
 CHECK_PASS = json.dumps({"passed": True, "summary": "Không phát hiện lỗi.", "issues": []})
 

@@ -1,15 +1,15 @@
 // Event SSE của /agent/chat/stream và /agent/chat/resume (xem backend/app/agent/streaming.py)
 
-export const PLATFORMS = ["linkedin", "twitter", "facebook"] as const;
+export const PLATFORMS = ["facebook", "instagram", "threads"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 export const PLATFORM_LABELS: Record<Platform, string> = {
-  linkedin: "LinkedIn",
-  twitter: "X Thread",
   facebook: "Facebook",
+  instagram: "Instagram",
+  threads: "Threads",
 };
 
 export type Drafts = Record<Platform, string>;
-export const emptyDrafts = (): Drafts => ({ linkedin: "", twitter: "", facebook: "" });
+export const emptyDrafts = (): Drafts => ({ facebook: "", instagram: "", threads: "" });
 
 export interface StatusEvent {
   step: string;

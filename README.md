@@ -4,7 +4,7 @@ Agent AI lên chiến dịch truyền thông đa kênh có người duyệt (hum
 
 ```
 brief → guardrail → RAG → dàn ý → [HITL 1: duyệt / sửa / từ chối]
-      → bản thảo LinkedIn · X · Facebook → fact-check ⇄ tự sửa (≤ 2 vòng)
+      → bản thảo Facebook · Instagram · Threads → fact-check ⇄ tự sửa (≤ 2 vòng)
       → [HITL 2: duyệt / sửa] → lưu bản cuối + log chi phí
 ```
 
@@ -85,7 +85,7 @@ Frontend gọi thẳng backend từ trình duyệt, nên origin của frontend p
 1. **Tài liệu** → tải lên PDF/DOCX/TXT/MD hoặc URL (≤ 10MB). Mỗi tài liệu hiện pipeline Parse → Chunk → Embed → Lưu DB với thanh tiến độ từng bước và cảnh báo khi kẹt (chưa có worker nhận task, mất heartbeat worker, bước không tiến triển).
 2. **Chiến dịch** → chọn model, gõ brief (vd. *"Ra mắt ứng dụng PayNow giúp kế toán SME đối soát hóa đơn, mục tiêu 500 lead tháng 11"*).
 3. Dàn ý stream dần → modal **Duyệt dàn ý**: *Duyệt*, *Sửa trực tiếp* (Markdown) hoặc *Từ chối* kèm lý do (agent tra cứu lại và đề xuất dàn ý mới).
-4. Ba bản thảo stream song song → fact-check (tự sửa tối đa 2 vòng) → màn **Duyệt bản thảo**: 3 tab LinkedIn / X Thread / Facebook, sửa trực tiếp từng kênh, đối chiếu danh sách pass/fail của fact-check rồi *chốt*.
+4. Ba bản thảo stream song song → fact-check (tự sửa tối đa 2 vòng) → màn **Duyệt bản thảo**: 3 tab Facebook / Instagram / Threads, sửa trực tiếp từng kênh, đối chiếu danh sách pass/fail của fact-check rồi *chốt*.
 5. Thanh **Token / Chi phí** góc trên cộng dồn theo từng lần gọi LLM. Tải lại trang (`/chat?thread=…`) vẫn khôi phục lịch sử, bước đang chờ duyệt và tổng chi phí.
 6. **Admin → Chi phí**: tổng token/USD theo model, node, người dùng, lọc theo ngày / user / model. **Bảng giá model**: sửa đơn giá, bật/tắt, đặt mặc định, thêm model. **Người dùng**: khóa / mở khóa (token cũ bị từ chối ngay).
 

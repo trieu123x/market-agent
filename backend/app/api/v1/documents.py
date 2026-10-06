@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, read_upload
 from app.core.config import get_settings
 from app.db.models import User
 from app.db.session import get_session
@@ -25,16 +25,6 @@ from app.workers.tasks import ingest_document
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-async def _read_limited(file: UploadFile, limit: int) -> bytes:
-    """Đọc file upload, lỗi nếu rỗng hoặc vượt giới hạn dung lượng."""
-    data = await file.read(limit + 1)
-    if len(data) > limit:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"File vượt quá {limit // (1024 * 1024)}MB")
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File rỗng")
-    return data
-
-
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload(
     file: UploadFile | None = File(default=None),
@@ -50,7 +40,7 @@ async def upload(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ ADMIN được upload tài liệu SYSTEM")
 
     if file is not None:
-        data = await _read_limited(file, get_settings().max_upload_bytes)
+        data = await read_upload(file, get_settings().max_upload_bytes)
         try:
             doc = await document_service.create_from_file(session, user, scope, file.filename or "upload", data)
         except document_service.InvalidUpload as e:
