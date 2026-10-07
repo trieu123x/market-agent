@@ -73,6 +73,16 @@ function SourceItem({ source: s }: { source: RagSource }) {
           </span>
           <span className="text-muted tabular-nums">đoạn #{s.chunk_index}</span>
         </div>
+        {!!s.needs?.length && (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-muted">Phục vụ:</span>
+            {s.needs.map((n) => (
+              <Badge key={n} tone="neutral">
+                {n}
+              </Badge>
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
           {(Object.keys(RANK_LABELS) as (keyof typeof RANK_LABELS)[]).map(
             (k) =>

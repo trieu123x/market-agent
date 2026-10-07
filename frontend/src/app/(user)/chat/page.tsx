@@ -34,6 +34,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [runKey, setRunKey] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const viewing = useRef<string | null>(null);
 
   const loadThreads = useCallback(async () => {
@@ -112,6 +113,21 @@ export default function ChatPage() {
     void resume(decision);
   }
 
+  async function handleDelete(thread: Thread) {
+    const title = thread.title || "Chiến dịch mới";
+    if (!window.confirm(`Xóa chiến dịch "${title}" cùng toàn bộ tin nhắn? Không thể hoàn tác.`)) return;
+    setDeletingId(thread.id);
+    try {
+      await api(`/api/v1/agent/threads/${encodeURIComponent(thread.id)}`, { method: "DELETE" });
+      if (viewing.current === thread.id) openThread(null);
+      await loadThreads();
+    } catch (err) {
+      setLoadError(errorText(err));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const interrupt = agent.interrupt;
   const awaitingOutline = agent.phase === "awaiting_outline" && interrupt?.stage === "OUTLINE_APPROVAL";
   const awaitingDrafts = agent.phase === "awaiting_drafts" && interrupt?.stage === "DRAFTS_APPROVAL";
@@ -149,6 +165,8 @@ export default function ChatPage() {
           disabled={busy}
           onSelect={openThread}
           onNew={() => openThread(null)}
+          onDelete={handleDelete}
+          deletingId={deletingId}
         />
       </aside>
       {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} />}

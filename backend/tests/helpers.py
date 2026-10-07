@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 
@@ -17,6 +18,19 @@ async def admin_headers(client) -> dict:
     r = await client.post("/api/v1/auth/login", json={"email": s.admin_email, "password": s.admin_password})
     assert r.status_code == 200, "chạy scripts/seed.py trước"
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+async def upload_and_wait(client, headers, filename: str, content: str) -> str:
+    """Upload tài liệu PRIVATE rồi chờ worker xử lý xong (READY); trả document_id."""
+    r = await client.post(
+        "/api/v1/documents/upload", headers=headers, files={"file": (filename, content.encode(), "text/plain")}
+    )
+    doc_id = r.json()["document_id"]
+    for _ in range(120):
+        if (await client.get(f"/api/v1/documents/{doc_id}", headers=headers)).json()["processing_status"] == "READY":
+            break
+        await asyncio.sleep(0.25)
+    return doc_id
 
 
 def new_thread_id() -> str:

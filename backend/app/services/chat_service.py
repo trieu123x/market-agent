@@ -34,6 +34,12 @@ async def list_threads(session: AsyncSession, user_id: uuid.UUID) -> list[ChatTh
     return list(await session.scalars(stmt))
 
 
+async def delete_thread(session: AsyncSession, thread: ChatThread) -> None:
+    """Xóa thread: thread_messages theo ON DELETE CASCADE, llm_cost_logs giữ lại (thread_id → NULL) cho audit."""
+    await session.delete(thread)
+    await session.commit()
+
+
 async def list_messages(session: AsyncSession, thread_id: str) -> list[ThreadMessage]:
     stmt = select(ThreadMessage).where(ThreadMessage.thread_id == thread_id).order_by(ThreadMessage.created_at)
     return list(await session.scalars(stmt))

@@ -1,13 +1,12 @@
-import asyncio
 import json
 import uuid
 
-from conftest import DRAFTS, OUTLINE, default_responder, platform_of, role_of
-from helpers import chat, new_thread_id, of, register_and_login, resume, steps
+from conftest import DRAFTS, OUTLINE, PLAN_NEEDS, default_responder, platform_of, role_of
+from helpers import chat, new_thread_id, of, register_and_login, resume, steps, upload_and_wait
 from sqlalchemy import select
 
 from app.agent.graph import get_graph, thread_config
-from app.db.models import LLMCostLog
+from app.db.models import LLMCostLog, ThreadMessage
 from app.db.session import SessionLocal
 from app.guardrails.rate_limiter import MemoryRateLimiter
 from app.services import pricing_service
@@ -30,11 +29,11 @@ async def test_full_flow_two_hitl_with_cost_audit(client, fake_llm):
     # Lượt 1: brief → dàn ý → dừng ở HITL 1
     events = await chat(client, user, tid)
     assert events[0][1]["thread_id"] == tid
-    assert steps(events) == ["STARTED", "INPUT_GUARDRAIL", "RAG_RETRIEVAL", "GENERATING_OUTLINE"]
+    assert steps(events) == ["STARTED", "INPUT_GUARDRAIL", "ANALYZING_BRIEF", "RAG_RETRIEVAL", "GENERATING_OUTLINE"]
     tokens = of(events, "token")
     assert len(tokens) > 1 and all(t["node"] == "generate_outline" for t in tokens)
     assert "".join(t["token"] for t in tokens) == OUTLINE
-    assert [c["node"] for c in of(events, "cost_update")] == ["generate_outline"]
+    assert [c["node"] for c in of(events, "cost_update")] == ["analyze_brief", "generate_outline"]
     assert events[-1][0] == "hitl_interrupt" and events[-1][1]["stage"] == "OUTLINE_APPROVAL"
     assert events[-1][1]["data"]["outline"] == OUTLINE
     first_costs = of(events, "cost_update")
@@ -65,7 +64,7 @@ async def test_full_flow_two_hitl_with_cost_audit(client, fake_llm):
     logs = await _cost_logs(tid)
     async with SessionLocal() as s:
         pricing = await pricing_service.resolve_active_model(s, None)
-    assert len(logs) == 5 and {log.model_id for log in logs} == {pricing.model_id}
+    assert len(logs) == 6 and {log.model_id for log in logs} == {pricing.model_id}
     for log in logs:
         assert log.total_tokens == log.prompt_tokens + log.completion_tokens > 0
         assert log.cost_usd == compute_cost(pricing, log.prompt_tokens, log.completion_tokens)
@@ -91,8 +90,11 @@ async def test_outline_reject_then_edit_continues_to_drafts(client, fake_llm):
     await chat(client, user, tid)
 
     events = await resume(client, user, tid, "REJECT", feedback="Tập trung vào kênh Instagram, gọi 0912345678")
-    assert steps(events) == ["STARTED", "RAG_RETRIEVAL", "GENERATING_OUTLINE"]
+    assert steps(events) == ["STARTED", "ANALYZING_BRIEF", "RAG_RETRIEVAL", "GENERATING_OUTLINE"]
     assert events[-1][0] == "hitl_interrupt" and events[-1][1]["stage"] == "OUTLINE_APPROVAL"
+    # Phân tích lại brief theo phản hồi (đã che PII) trước khi tra cứu lại
+    planner_prompt = fake_llm.calls("planner")[-1][-1].content
+    assert "Tập trung vào kênh Instagram" in planner_prompt and "0912345678" not in planner_prompt
     last_prompt = fake_llm.calls("outline")[-1][-1].content
     assert "Tập trung vào kênh Instagram" in last_prompt and OUTLINE in last_prompt
     assert "0912345678" not in last_prompt and "[PHONE]" in last_prompt
@@ -198,16 +200,7 @@ async def test_guardrail_blocks_jailbreak_and_masks_pii(client, fake_llm):
 async def test_rag_context_is_isolated_in_prompt(client, fake_llm):
     user, tid = await register_and_login(client), new_thread_id()
     marker = f"zq{uuid.uuid4().hex[:10]}"
-    r = await client.post(
-        "/api/v1/documents/upload",
-        headers=user,
-        files={"file": ("brief.txt", f"Sản phẩm {marker} ra mắt tháng 12 với ưu đãi 20%.".encode(), "text/plain")},
-    )
-    doc_id = r.json()["document_id"]
-    for _ in range(120):
-        if (await client.get(f"/api/v1/documents/{doc_id}", headers=user)).json()["processing_status"] == "READY":
-            break
-        await asyncio.sleep(0.25)
+    doc_id = await upload_and_wait(client, user, "brief.txt", f"Sản phẩm {marker} ra mắt tháng 12 với ưu đãi 20%.")
 
     events = await chat(client, user, tid, message=f"Lên chiến dịch ra mắt {marker}")
     # Chunk đã tra cứu đi kèm interrupt duyệt dàn ý và được lưu vào thẻ dàn ý trong lịch sử
@@ -223,6 +216,39 @@ async def test_rag_context_is_isolated_in_prompt(client, fake_llm):
         prompt = fake_llm.calls(role)[-1][-1].content
         context = prompt.split("<external_context>")[1].split("</external_context>")[0]
         assert marker in context and "brief.txt" in context, role
+
+
+async def test_knowledge_plan_drives_retrieval_and_outline(client, fake_llm):
+    user, tid = await register_and_login(client), new_thread_id()
+    marker = f"zs{uuid.uuid4().hex[:10]}"
+    doc_id = await upload_and_wait(client, user, "skill.txt", f"Framework {marker}: bước 1 quan sát, bước 2 đảo ngược.")
+    skill = {"kind": "skill", "name": "Framework sáng tạo", "why": "Cần ý tưởng mới", "query": f"framework {marker}"}
+    fake_llm.responder = lambda m: (
+        json.dumps({"needs": [skill, PLAN_NEEDS[1]]}) if role_of(m) == "planner" else default_responder(m)
+    )
+
+    # Brief không chứa marker: tài liệu chỉ tra được qua truy vấn riêng của kỹ năng
+    events = await chat(client, user, tid, message="Lên ý tưởng chiến dịch Tết cho ví điện tử")
+    assert "Lên ý tưởng chiến dịch Tết" in fake_llm.calls("planner")[-1][-1].content
+    hit = next(s for s in events[-1][1]["data"]["sources"] if s["document_id"] == doc_id)
+    assert "Framework sáng tạo" in hit["needs"]
+
+    prompt = fake_llm.calls("outline")[-1][-1].content
+    plan = prompt.split("<knowledge_plan>")[1].split("</knowledge_plan>")[0]
+    assert f"- [Kỹ năng] Framework sáng tạo: Cần ý tưởng mới → tài liệu [{hit['ref']}]" in plan
+    assert "[Kiến thức] Sản phẩm PayNow" in plan
+    context = prompt.split("<external_context>")[1].split("</external_context>")[0]
+    assert f"[{hit['ref']}] skill.txt" in context and "phục vụ: " in context and marker in context
+    assert (await _state(tid))["knowledge_plan"][0]["query"] == f"framework {marker}"
+
+
+async def test_unparsable_plan_falls_back_to_brief_retrieval(client, fake_llm):
+    fake_llm.responder = lambda m: "Không rõ" if role_of(m) == "planner" else default_responder(m)
+    user, tid = await register_and_login(client), new_thread_id()
+    events = await chat(client, user, tid)
+    assert events[-1][1]["stage"] == "OUTLINE_APPROVAL"
+    assert "<knowledge_plan>" not in fake_llm.calls("outline")[-1][-1].content
+    assert (await _state(tid))["knowledge_plan"] == []
 
 
 async def test_thread_ownership_and_state_conflicts(client, fake_llm):
@@ -303,3 +329,30 @@ async def test_thread_state_reports_pending_hitl_and_totals(client, fake_llm):
 
     other = await register_and_login(client)
     assert (await client.get(f"/api/v1/agent/threads/{tid}/state", headers=other)).status_code == 404
+
+
+async def test_delete_thread_removes_messages_and_checkpoints_keeps_costs(client, fake_llm):
+    owner, other, tid = await register_and_login(client), await register_and_login(client), new_thread_id()
+    url = f"/api/v1/agent/threads/{tid}"
+    await chat(client, owner, tid)
+    assert (await client.get(f"{url}/messages", headers=owner)).json()
+    costs = await _cost_logs(tid)
+    assert costs
+
+    assert (await client.delete(url, headers=other)).status_code == 404
+    assert (await client.delete(url)).status_code == 401
+    assert (await client.delete(url, headers=owner)).status_code == 204
+
+    assert tid not in {t["id"] for t in (await client.get("/api/v1/agent/threads", headers=owner)).json()}
+    assert (await client.get(f"{url}/messages", headers=owner)).status_code == 404
+    async with SessionLocal() as s:
+        assert not list(await s.scalars(select(ThreadMessage).where(ThreadMessage.thread_id == tid)))
+        # Log chi phí vẫn còn cho audit, chỉ mất liên kết thread
+        kept = [await s.get(LLMCostLog, c.id) for c in costs]
+    assert all(c is not None and c.thread_id is None for c in kept)
+    assert await _state(tid) == {}
+    assert (await client.delete(url, headers=owner)).status_code == 404
+
+    # Cùng thread_id dùng lại được như thread mới
+    events = await chat(client, owner, tid)
+    assert events[-1][1]["stage"] == "OUTLINE_APPROVAL"

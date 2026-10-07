@@ -1,5 +1,6 @@
+# Clone về rồi chạy: docker compose up -d --build  → mở http://localhost:3010
+# Chỉ hạ tầng cho chế độ dev: docker compose up -d postgres redis
 # Ports được chọn để không đụng stack agentx đang chạy (5433, 6379).
-# name: riêng, vì project mặc định "infra" trùng với stack agentx cũ.
 name: market_agent
 
 services:
@@ -32,12 +33,14 @@ services:
       retries: 10
 
 
-  # --- App (profile "full"): docker compose -f infra/docker-compose.yml --profile full up --build ---
+  # --- App ---
   api:
-    profiles: ["full"]
-    build: ../backend
+    build: ./backend
     container_name: market_api
-    env_file: ../backend/.env
+    env_file: &backend_env_file
+      - backend/.env.example        # giá trị mặc định, để clone về chạy được ngay
+      - path: backend/.env          # cấu hình thật (API key...), ghi đè mặc định
+        required: false
     environment: &backend_env
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/market_agent_db
       REDIS_URL: redis://redis:6379/0
@@ -56,11 +59,10 @@ services:
         condition: service_healthy
 
   worker:
-    profiles: ["full"]
-    build: ../backend
+    build: ./backend
     container_name: market_worker
     command: ["taskiq", "worker", "app.workers.broker:broker", "app.workers.tasks"]
-    env_file: ../backend/.env
+    env_file: *backend_env_file
     environment: *backend_env
     volumes:
       - market_uploads:/app/storage/uploads
@@ -69,9 +71,8 @@ services:
         condition: service_started
 
   web:
-    profiles: ["full"]
     build:
-      context: ../frontend
+      context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8010
     container_name: market_web

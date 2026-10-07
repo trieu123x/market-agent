@@ -97,7 +97,7 @@ async def test_cost_analytics_matches_streamed_costs(client, fake_llm):
     assert report["total_tokens_consumed"] == sum(c["tokens"] for c in costs)
     assert abs(report["total_cost_usd"] - sum(c["cost_usd"] for c in costs)) < 1e-9
     by_node = {b["node_name"]: b["tokens"] for b in report["breakdown_by_node"]}
-    assert set(by_node) == {"generate_outline", "multi_format_generator", "fact_checker"}
+    assert set(by_node) == {"analyze_brief", "generate_outline", "multi_format_generator", "fact_checker"}
     assert by_node["multi_format_generator"] == sum(c["tokens"] for c in costs if c["node"] == "multi_format_generator")
     assert [b["model_id"] for b in report["breakdown_by_model"]] == [costs[0]["model_id"]]
     assert report["breakdown_by_user"] == [

@@ -28,6 +28,14 @@ class FactCheckReport(TypedDict):
     round: int  # số lần đã refine trước lượt kiểm tra này
 
 
+class KnowledgeNeed(TypedDict):
+    """Một kỹ năng / mảng kiến thức cần để lên ý tưởng cho brief, kèm truy vấn RAG riêng (xem analyze_brief)."""
+    kind: str  # "skill" | "knowledge"
+    name: str
+    why: str
+    query: str
+
+
 class RagSource(TypedDict):
     """Chunk đã tra cứu, hiển thị cho người dùng khi duyệt dàn ý (đánh số khớp [i] trong context)."""
     ref: int
@@ -39,6 +47,7 @@ class RagSource(TypedDict):
     content: str
     score: float
     ranks: dict[str, int]  # thứ hạng trong từng nguồn: "vector" / "fts"
+    needs: list[str]  # tên kỹ năng/kiến thức (hoặc brief) mà chunk này được truy xuất cho
 
 
 class AgentState(TypedDict, total=False):
@@ -50,6 +59,7 @@ class AgentState(TypedDict, total=False):
     # Brief & RAG context (campaign_topic đã che PII)
     campaign_topic: str
     attachment_context: list[str]  # tệp người dùng đính kèm (đã trích text, che PII), đứng trước RAG
+    knowledge_plan: list[KnowledgeNeed]  # kỹ năng & kiến thức cần cho brief, mỗi cái một truy vấn RAG
     retrieved_rag_context: list[str]
     retrieved_sources: list[RagSource]
     web_search_context: list[str]

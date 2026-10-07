@@ -247,8 +247,7 @@ market_agent/
 │   ├── PLAN_5_DAYS.md            Kế hoạch 5 ngày
 │   ├── BAO_CAO_DU_AN.md          Báo cáo này
 │   └── samples/                  Tài liệu mẫu để test RAG (PayNow Marketing Playbook, hư cấu)
-├── infra/
-│   └── docker-compose.yml        Postgres + Redis; profile "full" thêm api, worker, web
+├── docker-compose.yml            Cả stack: Postgres, Redis, api, worker, web
 ├── backend/
 │   ├── Dockerfile                Python 3.13 + Tesseract; migrate + seed rồi chạy uvicorn
 │   ├── pyproject.toml · alembic.ini · .env.example

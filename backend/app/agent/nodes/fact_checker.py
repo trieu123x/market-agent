@@ -1,6 +1,4 @@
-import json
 import logging
-import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -12,20 +10,11 @@ from app.guardrails.output_scanner import find_cliches
 
 logger = logging.getLogger(__name__)
 
-_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$")
-
 
 def parse_checker_output(text: str) -> tuple[bool, str, list[FactCheckIssue]] | None:
     """Đọc JSON của fact-checker (chịu được code fence / lời dẫn quanh JSON). None nếu không đọc được."""
-    text = _FENCE_RE.sub("", text.strip())
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
-        return None
-    try:
-        data = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict) or not isinstance(data.get("issues", []), list):
+    data = llm_factory.json_object(text)
+    if data is None or not isinstance(data.get("issues", []), list):
         return None
     issues: list[FactCheckIssue] = [
         {

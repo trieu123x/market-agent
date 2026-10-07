@@ -59,6 +59,8 @@ export interface RagSource {
   content: string;
   score: number;
   ranks: Partial<Record<"vector" | "fts", number>>;
+  /** Kỹ năng / kiến thức (hoặc "Brief chiến dịch") mà chunk được truy xuất cho; thẻ dàn ý cũ không có. */
+  needs?: string[];
 }
 
 export interface OutlineInterrupt {

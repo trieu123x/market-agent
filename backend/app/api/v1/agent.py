@@ -90,6 +90,7 @@ async def chat_stream(
         "messages": [HumanMessage(body.message)],
         "campaign_topic": body.message,
         "attachment_context": [attachment_service.format_for_context(**a) for a in attachments],
+        "knowledge_plan": [],
         "retrieved_rag_context": [],
         "retrieved_sources": [],
         "web_search_context": [],
@@ -172,6 +173,19 @@ async def list_models(_: User = Depends(get_current_user), session: AsyncSession
 @router.get("/threads", response_model=list[ThreadOut])
 async def list_threads(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     return await chat_service.list_threads(session, user.id)
+
+
+@router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_thread(
+    thread_id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+):
+    """Xóa chiến dịch cùng tin nhắn và checkpoint LangGraph; log chi phí được giữ lại cho admin."""
+    thread = await chat_service.get_owned_thread(session, user.id, thread_id)
+    if thread is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found")
+    # Xóa checkpoint trước: nếu bước này lỗi, thread vẫn còn để xóa lại
+    await (await get_graph()).checkpointer.adelete_thread(thread_id)
+    await chat_service.delete_thread(session, thread)
 
 
 @router.get("/threads/{thread_id}/messages", response_model=list[ThreadMessageOut])

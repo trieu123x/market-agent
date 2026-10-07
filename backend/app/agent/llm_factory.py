@@ -1,4 +1,6 @@
 """Tạo chat model LangChain theo model_id (OpenAI / Anthropic / Gemini)."""
+import json
+import re
 from functools import lru_cache
 
 from langchain_core.language_models import BaseChatModel
@@ -80,3 +82,19 @@ def message_text(message: BaseMessage) -> str:
         for block in content
         if isinstance(block, str) or block.get("type") == "text"
     )
+
+
+_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$")
+
+
+def json_object(text: str) -> dict | None:
+    """Đọc JSON object từ output LLM (chịu được code fence / lời dẫn quanh JSON). None nếu không đọc được."""
+    text = _FENCE_RE.sub("", text.strip())
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None

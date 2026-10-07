@@ -25,27 +25,32 @@ Chọn lệch cổng chuẩn để không đụng các stack khác trên máy.
 
 ## Chạy nhanh bằng Docker
 
-Cần Docker và ít nhất một API key LLM (mặc định dùng Gemini – `GOOGLE_API_KEY`, key này cũng dùng cho embedding).
+Chỉ cần Docker. Ở thư mục gốc repo:
+
+```bash
+docker compose up -d --build
+```
+
+Compose lấy cấu hình mặc định từ `backend/.env.example`, nên chưa có `backend/.env` vẫn lên được. Muốn gọi LLM thật thì cần ít nhất một API key (mặc định dùng Gemini – `GOOGLE_API_KEY`, key này cũng dùng cho embedding):
 
 ```bash
 cp backend/.env.example backend/.env
 # sửa backend/.env: GOOGLE_API_KEY=..., JWT_SECRET=<chuỗi ngẫu nhiên dài>
-
-docker compose -f infra/docker-compose.yml --profile full up -d --build
+docker compose up -d
 ```
 
 Container `api` tự chạy `alembic upgrade head` và `scripts/seed.py` (admin mặc định + bảng giá model) trước khi khởi động.
 
 Mở http://localhost:3010, đăng nhập admin `admin@example.com` / `admin12345` (đổi qua `ADMIN_EMAIL` / `ADMIN_PASSWORD` trước lần seed đầu) hoặc đăng ký tài khoản mới.
 
-Không có profile `full`, compose chỉ chạy Postgres + Redis (dùng cho chế độ dev bên dưới).
+Dừng: `docker compose down` (thêm `-v` để xóa luôn dữ liệu DB / upload).
 
 ## Chạy dev (không Docker cho app)
 
 **1. Hạ tầng**
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d     # Postgres + Redis
+docker compose up -d postgres redis     # chỉ Postgres + Redis
 ```
 
 **2. Backend** (Python ≥ 3.11; OCR ảnh trong PDF cần `tesseract-ocr` + `tesseract-ocr-vie`, có thể tắt bằng `OCR_ENABLED=false`)
@@ -92,7 +97,7 @@ Frontend gọi thẳng backend từ trình duyệt, nên origin của frontend p
 ## Test
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose up -d postgres redis
 cd backend && . .venv/bin/activate
 alembic upgrade head && python -m scripts.seed   # test dùng admin seed
 pytest -q
@@ -111,6 +116,7 @@ Frontend: `npm run typecheck` và `npm run build`.
 | POST | `/api/v1/agent/chat/resume` | Gửi quyết định HITL (SSE) |
 | GET | `/api/v1/agent/models` | Model đang bật (+ đã có API key chưa) |
 | GET | `/api/v1/agent/threads` · `/threads/{id}/messages` · `/threads/{id}/state` | Lịch sử, HITL đang chờ, tổng chi phí thread |
+| DELETE | `/api/v1/agent/threads/{id}` | Xóa chiến dịch + tin nhắn + checkpoint (log chi phí giữ lại cho admin) |
 | POST/GET | `/api/v1/documents/upload` · `/documents` | Tài liệu RAG |
 | GET/PATCH/PUT/DELETE | `/api/v1/admin/...` | Users, pricing, analytics/costs, xóa tài liệu |
 

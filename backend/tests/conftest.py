@@ -55,11 +55,18 @@ DRAFTS = {
     "threads": "1/ Đối soát thủ công tốn 3 ngày mỗi tháng.\n\n2/ PayNow làm việc đó trong 1 giờ.",
 }
 CHECK_PASS = json.dumps({"passed": True, "summary": "Không phát hiện lỗi.", "issues": []})
+PLAN_NEEDS = [
+    {"kind": "skill", "name": "Khai thác insight khách hàng", "why": "Cần insight CFO SME", "query": "insight khách hàng CFO SME"},
+    {"kind": "knowledge", "name": "Sản phẩm PayNow", "why": "Cần tính năng thật", "query": "PayNow tính năng đối soát"},
+]
+PLAN = json.dumps({"needs": PLAN_NEEDS}, ensure_ascii=False)
 
 
 def role_of(messages: list[BaseMessage]) -> str:
     """Nhận diện node đang gọi LLM qua system prompt (xem app/agent/prompts/*.md)."""
     system = messages[0].content
+    if "kế hoạch truy xuất" in system:
+        return "planner"
     if "biên tập lại" in system:  # trước "fact-checker": prompt refine cũng nhắc tới fact-checker
         return "refine"
     if "fact-checker" in system:
@@ -75,6 +82,8 @@ def platform_of(messages: list[BaseMessage]) -> str:
 
 def default_responder(messages: list[BaseMessage]) -> str:
     role = role_of(messages)
+    if role == "planner":
+        return PLAN
     if role == "fact_checker":
         return CHECK_PASS
     if role == "refine":

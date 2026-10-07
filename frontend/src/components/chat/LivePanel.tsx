@@ -9,6 +9,7 @@ import { PLATFORMS, type Drafts, type Platform, type StatusEvent } from "@/types
 
 const STEPS = [
   ["INPUT_GUARDRAIL", "An toàn"],
+  ["ANALYZING_BRIEF", "Phân tích"],
   ["RAG_RETRIEVAL", "Tra cứu"],
   ["GENERATING_OUTLINE", "Dàn ý"],
   ["GENERATING_DRAFTS", "Bản thảo"],

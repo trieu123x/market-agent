@@ -7,6 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from psycopg_pool import AsyncConnectionPool
 
 from app.agent.checkpointer import open_checkpointer
+from app.agent.nodes.analyze_brief import analyze_brief
 from app.agent.nodes.fact_checker import fact_checker
 from app.agent.nodes.finalize_log import finalize_log
 from app.agent.nodes.generate_outline import generate_outline
@@ -20,11 +21,11 @@ from app.agent.state import MAX_REFINES, AgentState
 
 
 def _after_guardrail(state: AgentState) -> str:
-    return END if state.get("guardrail_violation") else "intent_rag"
+    return END if state.get("guardrail_violation") else "analyze_brief"
 
 
 def _after_outline_review(state: AgentState) -> str:
-    return "intent_rag" if state.get("outline_status") == "rejected" else "multi_format_generator"
+    return "analyze_brief" if state.get("outline_status") == "rejected" else "multi_format_generator"
 
 
 def _after_fact_check(state: AgentState) -> str:
@@ -36,6 +37,7 @@ def _after_fact_check(state: AgentState) -> str:
 def build_graph() -> StateGraph:
     g = StateGraph(AgentState)
     g.add_node("input_guardrail", input_guardrail)
+    g.add_node("analyze_brief", analyze_brief)
     g.add_node("intent_rag", intent_rag)
     g.add_node("generate_outline", generate_outline)
     g.add_node("hitl_outline", hitl_outline)
@@ -46,10 +48,11 @@ def build_graph() -> StateGraph:
     g.add_node("finalize_log", finalize_log)
 
     g.add_edge(START, "input_guardrail")
-    g.add_conditional_edges("input_guardrail", _after_guardrail, ["intent_rag", END])
+    g.add_conditional_edges("input_guardrail", _after_guardrail, ["analyze_brief", END])
+    g.add_edge("analyze_brief", "intent_rag")
     g.add_edge("intent_rag", "generate_outline")
     g.add_edge("generate_outline", "hitl_outline")
-    g.add_conditional_edges("hitl_outline", _after_outline_review, ["intent_rag", "multi_format_generator"])
+    g.add_conditional_edges("hitl_outline", _after_outline_review, ["analyze_brief", "multi_format_generator"])
     g.add_edge("multi_format_generator", "fact_checker")
     g.add_conditional_edges("fact_checker", _after_fact_check, ["refine_generator", "hitl_drafts"])
     g.add_edge("refine_generator", "fact_checker")
