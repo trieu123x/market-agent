@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     reranker_enabled: bool = True
     reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
     reranker_max_length: int = 512
+    # Ngưỡng điểm Cross-Encoder để chunk được đưa vào context agent. Model trên trả logit thô:
+    # đoạn liên quan ~ -2..+5, không liên quan ~ -8. Đổi model thì phải chỉnh lại.
+    reranker_min_score: float = -3.0
 
     # Gemini phân tích ảnh đính kèm khi chat (dùng GOOGLE_API_KEY)
     vision_model: str = "gemini-2.5-flash"

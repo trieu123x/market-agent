@@ -4,6 +4,7 @@ import uuid
 from itertools import zip_longest
 
 from app.agent.state import AgentState, RagSource
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.rag.retriever import FINAL_TOP_K, RetrievedChunk, retrieve
 
@@ -52,6 +53,12 @@ async def _retrieve(query: str, user_id: uuid.UUID, top_k: int, thread_id: str |
         return []
 
 
+def drop_irrelevant(chunks: list[RetrievedChunk], min_score: float) -> list[RetrievedChunk]:
+    """Bỏ chunk Cross-Encoder chấm dưới ngưỡng để nhu cầu không có tài liệu khớp không bị nhét chunk lạc đề;
+    chunk chưa rerank (reranker tắt/lỗi) giữ nguyên."""
+    return [c for c in chunks if c.rerank_score is None or c.rerank_score >= min_score]
+
+
 def merge_results(results: list[tuple[str, list[RetrievedChunk]]], limit: int) -> list[tuple[RetrievedChunk, list[str]]]:
     """Gộp kết quả nhiều truy vấn theo vòng (hạng 1 của mọi truy vấn, rồi hạng 2...) để nhu cầu nào cũng có chỗ;
     chunk trùng giữ một bản, ghi thêm tên nhu cầu."""
@@ -73,7 +80,8 @@ async def intent_rag(state: AgentState) -> dict:
     queries += [(n["name"], n["query"], PER_NEED_TOP_K) for n in state.get("knowledge_plan", [])]
     user_id, thread_id = uuid.UUID(state["user_id"]), state.get("thread_id")
     hits = await asyncio.gather(*(_retrieve(q, user_id, k, thread_id) for _, q, k in queries))
-    results = [(name, h) for (name, _, _), h in zip(queries, hits)]
+    min_score = get_settings().reranker_min_score
+    results = [(name, drop_irrelevant(h, min_score)) for (name, _, _), h in zip(queries, hits)]
     numbered = list(enumerate(merge_results(results, MAX_CONTEXT_CHUNKS), start=1))
     return {
         "retrieved_rag_context": [_format_chunk(i, c, needs) for i, (c, needs) in numbered],
