@@ -1,13 +1,6 @@
 import json
-import uuid
 
 from app.agent.nodes.analyze_brief import MAX_NEEDS, parse_plan
-from app.agent.nodes.intent_rag import merge_results
-from app.rag.retriever import RetrievedChunk
-
-
-def _chunk(name: str) -> RetrievedChunk:
-    return RetrievedChunk(uuid.uuid5(uuid.NAMESPACE_DNS, name), uuid.uuid4(), "t", 0, name, {})
 
 
 def test_parse_plan_keeps_valid_needs_and_cleans_fields():
@@ -32,15 +25,3 @@ def test_parse_plan_limits_and_rejects_garbage():
     assert parse_plan("Không rõ") is None
     assert parse_plan('{"needs": "none"}') is None
     assert parse_plan('{"needs": []}') == []
-
-
-def test_merge_results_round_robin_dedupes_and_limits():
-    a, b, c, d, e = (_chunk(x) for x in "abcde")
-    merged = merge_results([("brief", [a, b, c]), ("skill", [_chunk("b"), d]), ("fact", [e])], limit=4)
-    assert [(ch.content, needs) for ch, needs in merged] == [
-        ("a", ["brief"]),
-        ("b", ["skill", "brief"]),
-        ("e", ["fact"]),
-        ("d", ["skill"]),
-    ]
-    assert merge_results([("brief", [])], limit=4) == []

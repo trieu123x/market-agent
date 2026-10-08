@@ -227,18 +227,17 @@ async def test_knowledge_plan_drives_retrieval_and_outline(client, fake_llm):
         json.dumps({"needs": [skill, PLAN_NEEDS[1]]}) if role_of(m) == "planner" else default_responder(m)
     )
 
-    # Brief không chứa marker: tài liệu chỉ tra được qua truy vấn riêng của kỹ năng
+    # Brief không chứa marker: tài liệu chỉ tra được qua truy vấn của kỹ năng, gộp vào truy vấn chung
     events = await chat(client, user, tid, message="Lên ý tưởng chiến dịch Tết cho ví điện tử")
     assert "Lên ý tưởng chiến dịch Tết" in fake_llm.calls("planner")[-1][-1].content
     hit = next(s for s in events[-1][1]["data"]["sources"] if s["document_id"] == doc_id)
-    assert "Framework sáng tạo" in hit["needs"]
 
     prompt = fake_llm.calls("outline")[-1][-1].content
     plan = prompt.split("<knowledge_plan>")[1].split("</knowledge_plan>")[0]
-    assert f"- [Kỹ năng] Framework sáng tạo: Cần ý tưởng mới → tài liệu [{hit['ref']}]" in plan
+    assert f"- [Kỹ năng] Framework sáng tạo: Cần ý tưởng mới" in plan
     assert "[Kiến thức] Sản phẩm PayNow" in plan
     context = prompt.split("<external_context>")[1].split("</external_context>")[0]
-    assert f"[{hit['ref']}] skill.txt" in context and "phục vụ: " in context and marker in context
+    assert f"[{hit['ref']}] skill.txt" in context and marker in context
     assert (await _state(tid))["knowledge_plan"][0]["query"] == f"framework {marker}"
 
 

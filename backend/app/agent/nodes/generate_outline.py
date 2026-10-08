@@ -8,16 +8,11 @@ KIND_LABELS = {"skill": "Kỹ năng", "knowledge": "Kiến thức"}
 
 
 def knowledge_plan_block(state: AgentState) -> str | None:
-    """Kỹ năng & kiến thức analyze_brief đã xác định, kèm số [i] của tài liệu truy xuất được cho từng cái."""
+    """Kỹ năng & kiến thức analyze_brief đã xác định (tài liệu truy xuất bằng một truy vấn gộp nên nằm chung ở external_context)."""
     plan = state.get("knowledge_plan") or []
     if not plan:
         return None
-    sources = state.get("retrieved_sources", [])
-    lines = []
-    for need in plan:
-        refs = ", ".join(f"[{s['ref']}]" for s in sources if need["name"] in s.get("needs", []))
-        found = f"tài liệu {refs}" if refs else "không tìm thấy tài liệu"
-        lines.append(f"- [{KIND_LABELS[need['kind']]}] {need['name']}: {need['why']} → {found}")
+    lines = [f"- [{KIND_LABELS[need['kind']]}] {need['name']}: {need['why']}" for need in plan]
     return "<knowledge_plan>\n" + "\n".join(lines) + "\n</knowledge_plan>"
 
 
