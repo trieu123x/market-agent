@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     embedding_model: str = "gemini-embedding-001"
     embedding_batch_size: int = 64
 
-    # Cross-Encoder rerank top 15 RRF → top 4 (sentence-transformers, CPU). Model đa ngôn ngữ, có tiếng Việt.
+    # Cross-Encoder rerank top 15 RRF → top 8 (sentence-transformers, CPU). Model đa ngôn ngữ, có tiếng Việt.
     reranker_enabled: bool = True
     reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
     reranker_max_length: int = 512

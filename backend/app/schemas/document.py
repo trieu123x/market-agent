@@ -48,7 +48,7 @@ class DocumentChunkPage(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
-    top_k: int = Field(default=4, ge=1, le=15)
+    top_k: int = Field(default=8, ge=1, le=15)
 
 
 class ChunkHit(BaseModel):

@@ -16,7 +16,7 @@ from app.rag.reranker import rerank
 RRF_K = 60
 CANDIDATES_PER_SOURCE = 30
 FUSED_TOP_N = 15
-FINAL_TOP_K = 4
+FINAL_TOP_K = 8
 
 
 @dataclass
