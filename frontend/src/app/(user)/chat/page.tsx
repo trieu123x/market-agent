@@ -206,6 +206,7 @@ export default function ChatPage() {
                 <LivePanel
                   key={runKey}
                   status={agent.status}
+                  needs={agent.needs}
                   outline={agent.outline}
                   drafts={agent.drafts}
                   streaming={streaming}

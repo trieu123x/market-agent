@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 import { PlatformTabs } from "@/components/hitl/PlatformTabs";
-import { Spinner } from "@/components/ui";
+import { Badge, Spinner } from "@/components/ui";
 import { Markdown } from "@/components/ui/Markdown";
-import { PLATFORMS, type Drafts, type Platform, type StatusEvent } from "@/types/events";
+import { PLATFORMS, type Drafts, type KnowledgeNeed, type Platform, type StatusEvent } from "@/types/events";
 
 const STEPS = [
   ["INPUT_GUARDRAIL", "An toàn"],
@@ -20,13 +20,14 @@ const STEPS = [
 
 interface Props {
   status: StatusEvent | null;
+  needs: KnowledgeNeed[] | null;
   outline: string;
   drafts: Drafts;
   streaming: boolean;
 }
 
 /** Nội dung đang stream của lượt hiện tại: tiến trình các bước + token dàn ý / bản thảo. */
-export function LivePanel({ status, outline, drafts, streaming }: Props) {
+export function LivePanel({ status, needs, outline, drafts, streaming }: Props) {
   const [picked, setPicked] = useState<Platform | null>(null);
   const hasDrafts = PLATFORMS.some((p) => drafts[p]);
   // Mặc định bám theo kênh đang nhận token cuối cùng có nội dung
@@ -52,6 +53,24 @@ export function LivePanel({ status, outline, drafts, streaming }: Props) {
               </li>
             ))}
           </ol>
+        </div>
+      )}
+      {needs && (
+        <div className="rounded-lg border border-line bg-panel px-4 py-3">
+          <div className="mb-2 text-sm font-medium">Phân tích brief</div>
+          {needs.length === 0 ? (
+            <p className="text-sm text-muted">Không xác định thêm kỹ năng/kiến thức nào – tra cứu theo brief gốc.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {needs.map((n, i) => (
+                <li key={i}>
+                  <Badge tone={n.kind === "skill" ? "accent" : "neutral"}>{n.kind === "skill" ? "Kỹ năng" : "Kiến thức"}</Badge>{" "}
+                  <span className="font-medium">{n.name}</span>
+                  {n.why && <span className="text-muted"> – {n.why}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       {outline && (

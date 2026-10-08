@@ -33,6 +33,18 @@ export interface CostUpdateEvent {
   pricing_missing: boolean;
 }
 
+/** Kỹ năng / kiến thức agent cho là cần để lên ý tưởng cho brief (kết quả analyze_brief). */
+export interface KnowledgeNeed {
+  kind: "skill" | "knowledge";
+  name: string;
+  why: string;
+  query: string;
+}
+
+export interface BriefAnalysisEvent {
+  needs: KnowledgeNeed[];
+}
+
 export interface FactCheckIssue {
   platform: string;
   kind: "fact" | "cliche";
@@ -93,6 +105,7 @@ export type AgentEvent =
   | { event: "status"; data: StatusEvent }
   | { event: "token"; data: TokenEvent }
   | { event: "cost_update"; data: CostUpdateEvent }
+  | { event: "brief_analysis"; data: BriefAnalysisEvent }
   | { event: "hitl_interrupt"; data: HitlInterruptEvent }
   | { event: "error"; data: ErrorEvent }
   | { event: "complete"; data: CompleteEvent };

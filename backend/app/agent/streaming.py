@@ -1,5 +1,5 @@
 """Chuyển `astream_events` của LangGraph thành các event SSE:
-status, token, cost_update, hitl_interrupt, error, complete."""
+status, token, cost_update, brief_analysis, hitl_interrupt, error, complete."""
 import json
 import logging
 import uuid
@@ -40,6 +40,10 @@ def _map_event(ev: dict) -> Event | None:
     if kind == "on_chain_start" and ev["name"] == node and node in NODE_STATUS:
         step, message = NODE_STATUS[node]
         return "status", {"step": step, "message": message}
+    if kind == "on_chain_end" and ev["name"] == node == "analyze_brief":
+        output = ev["data"].get("output")
+        plan = output.get("knowledge_plan") if isinstance(output, dict) else None
+        return "brief_analysis", {"needs": [dict(n) for n in plan or []]}
     if kind == "on_chat_model_stream" and node in TOKEN_NODES:
         if token := message_text(ev["data"]["chunk"]):
             data = {"node": node, "token": token}

@@ -10,6 +10,7 @@ import {
   type AgentEvent,
   type Drafts,
   type HitlInterruptEvent,
+  type KnowledgeNeed,
   type Platform,
   type ResumeDecision,
   type StatusEvent,
@@ -23,6 +24,7 @@ interface State {
   phase: Phase;
   threadId: string | null;
   status: StatusEvent | null;
+  needs: KnowledgeNeed[] | null; // kết quả phân tích brief của lượt hiện tại
   outline: string; // token outline đang stream
   drafts: Drafts; // token bản thảo đang stream theo kênh
   refined: Platform[]; // kênh đã bắt đầu nhận token refine trong vòng sửa hiện tại
@@ -40,6 +42,7 @@ const initial: State = {
   phase: "idle",
   threadId: null,
   status: null,
+  needs: null,
   outline: "",
   drafts: emptyDrafts(),
   refined: [],
@@ -86,6 +89,8 @@ function applyEvent(state: State, ev: AgentEvent): State {
       return { ...state, phase: "error", error: ev.data.message, status: null };
     case "complete":
       return { ...state, phase: "done", status: null };
+    case "brief_analysis":
+      return { ...state, needs: ev.data.needs };
     case "cost_update":
       return state;
   }
